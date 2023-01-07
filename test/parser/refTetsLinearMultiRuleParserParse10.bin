@@ -1,0 +1,1 @@
+cst.Node{Type:0, Name:"", Childs:[]cst.Node{cst.Node{Type:-1, Name:"A", Childs:[]cst.Node{}}, cst.Node{Type:-1, Name:"::=", Childs:[]cst.Node{}}, cst.Node{Type:1, Name:"", Childs:[]cst.Node{cst.Node{Type:-1, Name:"C", Childs:[]cst.Node{}}}}}}

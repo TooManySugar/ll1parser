@@ -1,0 +1,1 @@
+map[int]string{-3:"_nothing", -2:"_endofline", -1:"_literal", 0:"T", 1:"Ta"}

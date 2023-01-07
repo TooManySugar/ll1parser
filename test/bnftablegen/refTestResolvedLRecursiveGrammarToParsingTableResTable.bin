@@ -1,0 +1,1 @@
+map[int]map[uint8][]parserimpl.ParserOp{0:map[uint8][]parserimpl.ParserOp{0x5f:[]parserimpl.ParserOp{parserimpl.terminal_t{value:"_"}, parserimpl.nonTerminal_t{name:1}}}, 1:map[uint8][]parserimpl.ParserOp{0x0:[]parserimpl.ParserOp{}, 0x42:[]parserimpl.ParserOp{parserimpl.terminal_t{value:"B"}, parserimpl.nonTerminal_t{name:1}}}}
