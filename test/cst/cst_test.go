@@ -6,7 +6,81 @@ import (
 	tc "testcommon"
 	"bytes"
 	"os"
+	"io"
+	"fmt"
+	"strings"
 )
+
+
+type typeName struct {
+	Type int
+	Name string
+	Level int
+}
+
+type namedVisitor struct {
+	level int
+	names map[int]string
+	output *[]typeName
+	visited []int
+}
+
+func NewNamedVisitor(names map[int]string) (v namedVisitor)  {
+	o := make([]typeName, 0)
+	return namedVisitor{
+		level: 0,
+		names: names,
+		output: &o,
+		visited: []int{},
+	}
+}
+
+func (v namedVisitor) Visit(node *cst.Node) (w cst.Visitor) {
+	if node == nil {
+		return nil
+	}
+
+	if len(node.Name) != 0 {
+		for _, oi := range v.visited {
+			(*v.output)[oi].Name += node.Name
+		}
+	}
+
+	*v.output = append(*v.output, typeName{
+		Type: node.Type,
+		Name: node.Name,
+		Level: v.level,
+	})
+	return namedVisitor {
+		level: v.level + 1,
+		names: v.names,
+		output: v.output,
+		visited: append(v.visited, len(*v.output)-1),
+	}
+}
+
+func FprintTreeNamed(w io.Writer, root cst.Node, namingMap map[int]string) (int, error) {
+	nodeTypeToName := func (name_id int) string {
+		val, ok := namingMap[name_id]
+		if !ok {
+			return fmt.Sprintf("Unknown_%d", name_id)
+		}
+		return val
+	}
+
+	v := NewNamedVisitor(namingMap)
+	cst.Walk(v, root)
+
+
+	sb := strings.Builder{}
+	for _, node := range *v.output {
+		for i := 0; i < (node.Level); i++ {
+			sb.WriteString("  ")
+		}
+		sb.WriteString(fmt.Sprintf("%s: string(%s)\n", nodeTypeToName(node.Type), node.Name))
+	}
+	return w.Write([]byte(sb.String()))
+}
 
 func TestFprintTreeNamed(t *testing.T) {
 
@@ -318,7 +392,7 @@ func TestFprintTreeNamed(t *testing.T) {
 	}
 
 	sb := bytes.Buffer{}
-	cst.FprintTreeNamed(&sb, tree, typeNames)
+	FprintTreeNamed(&sb, tree, typeNames)
 
 	tc.ReaderContentMustBeEqual(t, f, &sb)
 }
