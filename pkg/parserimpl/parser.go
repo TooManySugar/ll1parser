@@ -71,6 +71,7 @@ func (t terminal_t) GetValue() string {
 
 type function_t struct {
 	Name int
+	Pos int
 	Amount int
 }
 
@@ -80,6 +81,10 @@ func (f function_t) parserOpType() int {
 
 func (f function_t) GetName() int {
 	return f.Name
+}
+
+func (f function_t) GetPos() int {
+	return f.Pos
 }
 
 func (f function_t) GetAmount() int {
@@ -149,7 +154,6 @@ func (opStack *ll1parserOpStack) Len() int {
 	return len(opStack.stack)
 }
 
-
 type ll1parserProdStack struct {
 	stack []cst.Node
 }
@@ -158,7 +162,7 @@ func (prodStack *ll1parserProdStack) Pop() (cst.Node, bool) {
 	stackLen := len(prodStack.stack)
 
 	if stackLen == 0 {
-		return cst.Node{}, false
+		return nil, false
 	}
 
 	var res cst.Node
@@ -176,7 +180,7 @@ func (prodStack ll1parserProdStack) Len() int {
 }
 
 
-func (p ll1parser_t) Parse(in parserinterfaces.LL1ParserReader) (*cst.Node, *map[int]string, error) {
+func (p ll1parser_t) Parse(in parserinterfaces.LL1ParserReader) (cst.Node, *map[int]string, error) {
 
 	if len(p.table) == 0 {
 		return nil, nil, fmt.Errorf("empty parsing table")
@@ -239,7 +243,7 @@ func (p ll1parser_t) Parse(in parserinterfaces.LL1ParserReader) (*cst.Node, *map
 						           nodeTypeName(nodeType))
 				}
 
-				opStack.Push(function_t{Name: nodeType, Amount: len(opsToPush)})
+				opStack.Push(function_t{Name: nodeType, Pos: in.Pos(), Amount: len(opsToPush)})
 
 				for i := len(opsToPush) - 1; i >= 0; i -- {
 					opStack.Push(opsToPush[i])
@@ -251,10 +255,10 @@ func (p ll1parser_t) Parse(in parserinterfaces.LL1ParserReader) (*cst.Node, *map
 
 					switch input {
 					case '\n':
-						opStack.Push(function_t{Name: nodeType, Amount: 1})
+						opStack.Push(function_t{Name: nodeType, Pos: in.Pos(), Amount: 1})
 						opStack.Push(OpTerminal("\n"))
 					case '\r':
-						opStack.Push(function_t{Name: nodeType, Amount: 2})
+						opStack.Push(function_t{Name: nodeType, Pos: in.Pos(), Amount: 2})
 						opStack.Push(OpTerminal("\n"))
 						opStack.Push(OpTerminal("\r"))
 					default:
@@ -277,7 +281,7 @@ func (p ll1parser_t) Parse(in parserinterfaces.LL1ParserReader) (*cst.Node, *map
 
 			tValue := t.GetValue()
 
-			opStack.Push(function_t{Name: builtinTerminal, Amount: len(tValue)})
+			opStack.Push(function_t{Name: builtinTerminal, Pos: in.Pos(), Amount: len(tValue)})
 			for i := len(tValue) - 1; i >= 0; i -- {
 				opStack.Push(opChar_t{Value: tValue[i]})
 			}
@@ -289,15 +293,12 @@ func (p ll1parser_t) Parse(in parserinterfaces.LL1ParserReader) (*cst.Node, *map
 			}
 
 			childs := []cst.Node{}
-			name := ""
 
 			if f.Amount == 0 {
-				// Push empty string sequence as cst.Node with single child - Nothing
-				childs = append(childs, cst.Node{Type: -3, Name: "", Childs: []cst.Node{}})
-				prodStack.Push(cst.Node{Type: f.Name, Name: name, Childs: childs})
+				childs = append(childs, cst.NewNode(-3, in.Pos(), in.Pos(), nil))
+				prodStack.Push(cst.NewNode(f.Name, in.Pos(), in.Pos(), childs))
 				break
 			}
-
 
 			for i := 0; i < f.Amount; i++ {
 				node, ok := prodStack.Pop()
@@ -305,10 +306,9 @@ func (p ll1parser_t) Parse(in parserinterfaces.LL1ParserReader) (*cst.Node, *map
 					panic("trying to pop from empty stack")
 				}
 				if f.Name == builtinTerminal {
-					if node.Type != builtinTerminal {
+					if node.Type() != builtinTerminal {
 						panic("Tring to combine chars of terminal from non chars type")
 					}
-					name = node.Name + name
 				} else {
 					childs = append([]cst.Node{node}, childs...)
 				}
@@ -316,7 +316,7 @@ func (p ll1parser_t) Parse(in parserinterfaces.LL1ParserReader) (*cst.Node, *map
 			if f.Name == builtinEOL {
 				childs = []cst.Node{}
 			}
-			prodStack.Push(cst.Node{Type: f.Name, Name: name, Childs: childs})
+			prodStack.Push(cst.NewNode(f.Name, f.GetPos(), in.Pos(), childs))
 		}
 		case opEOS: {
 			if in.Peek() != byte(0) {
@@ -339,7 +339,7 @@ func (p ll1parser_t) Parse(in parserinterfaces.LL1ParserReader) (*cst.Node, *map
 			ret_names[builtinEOL]      = "_endofline"
 			ret_names[builtinNothing]  = "_nothing"
 
-			return &n, &ret_names, nil
+			return n, &ret_names, nil
 		}
 		case opChar: {
 			c, ok := (*op).(opChar_t)
@@ -352,7 +352,7 @@ func (p ll1parser_t) Parse(in parserinterfaces.LL1ParserReader) (*cst.Node, *map
 				return nil, nil, fmt.Errorf("expected char %s, got %s", charCode(c.GetValue()), charCode(in.Peek()))
 			}
 
-			prodStack.Push(cst.Node{Type: builtinTerminal, Name: string(in.Peek()), Childs: []cst.Node{}})
+			prodStack.Push(cst.NewNode(builtinTerminal, in.Pos(), in.Pos() + 1, nil))
 			in.Move()
 		}
 		default: {

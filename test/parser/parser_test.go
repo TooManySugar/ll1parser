@@ -73,11 +73,51 @@ type ParserTestCase struct {
 }
 
 func parserParseString(parser parserinterfaces.LL1Parser,
-                       in string) (parseTree *cst.Node,
+                       in string) (parseTree cst.Node,
                                    namingMap *map[int]string,
                                    err error) {
 	pm := spm.NewSimplePeekMover(in)
 	return parser.Parse(pm)
+}
+
+const refFormat = "%v"
+
+func updateTestsOnParser(t *testing.T,
+	parser parserinterfaces.LL1Parser,
+	tests []ParserTestCase) {
+	for i, test := range tests {
+		if test.output.err != nil {
+			continue
+		}
+
+		var reft, refnt *os.File
+		var err error
+		reft, err = os.Create(test.output.parseTreeFile)
+		if err != nil {
+			t.Errorf("Can't create reference file: %s", err.Error())
+			t.Fail()
+			return
+		}
+		defer reft.Close()
+
+		refnt, err = os.Create(test.output.namingMapFile)
+		if err != nil {
+			t.Errorf("Can't create reference file: %s", err.Error())
+			t.Fail()
+			return
+		}
+		defer refnt.Close()
+
+		rest, resnt, reserr := parserParseString(parser, test.input)
+		if reserr != nil {
+			t.Errorf("TEST %d: Expected error %v got error %v", i, test.output.err, reserr)
+			t.Fail()
+			return
+		}
+
+		fmt.Fprintf(reft, refFormat, rest)
+		fmt.Fprintf(refnt, refFormat, *resnt)
+	}
 }
 
 func performTestsOnParser(t *testing.T,
@@ -131,12 +171,12 @@ func performTestsOnParser(t *testing.T,
 
 		sb := bytes.Buffer{}
 
-		fmt.Fprintf(&sb, "%#v", *rest)
+		fmt.Fprintf(&sb, refFormat, rest)
 		tc.ReaderContentMustBeEqual(t, reft, &sb)
 
 		sb.Reset()
 
-		fmt.Fprintf(&sb, "%#v", *resnt)
+		fmt.Fprintf(&sb, refFormat, *resnt)
 		tc.ReaderContentMustBeEqual(t, refnt, &sb)
 	}
 }
@@ -200,6 +240,7 @@ func TestLinearMultiRuleParserParse(t *testing.T) {
 
 	parser := parserimpl.NewLL1Parser(*table, *tableNames)
 
+	// updateTestsOnParser(t, parser, tests)
 	performTestsOnParser(t, parser, tests)
 }
 
@@ -235,6 +276,7 @@ func TestOrParserParse(t *testing.T) {
 
 	parser := parserimpl.NewLL1Parser(*table, *tableNames)
 
+	// updateTestsOnParser(t, parser, tests)
 	performTestsOnParser(t, parser, tests)
 }
 
@@ -278,20 +320,7 @@ func TestResolvedLRecursiveParserParse(t *testing.T) {
 
 	parser := parserimpl.NewLL1Parser(*table, *tableNames)
 
-	// for _, test := range tests {
-	// 	t, nt, err := parserParseString(parser, test.input)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-
-	// 	f, _ := os.Create(test.output.parseTreeFile)
-	// 	fmt.Fprintf(f, "%#v", *t)
-	// 	f.Close()
-	// 	f, _ = os.Create(test.output.namingMapFile)
-	// 	fmt.Fprintf(f, "%#v", *nt)
-	// 	f.Close()
-	// }
-
+	// updateTestsOnParser(t, parser, tests)
 	performTestsOnParser(t, parser, tests)
 }
 

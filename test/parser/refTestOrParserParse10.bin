@@ -1,1 +1,1 @@
-cst.Node{Type:0, Name:"", Childs:[]cst.Node{cst.Node{Type:-1, Name:"\"", Childs:[]cst.Node{}}, cst.Node{Type:1, Name:"", Childs:[]cst.Node{cst.Node{Type:-1, Name:"B", Childs:[]cst.Node{}}}}, cst.Node{Type:-1, Name:"^", Childs:[]cst.Node{}}}}
+{0 0 3 [{-1 0 1 []} {1 1 2 [{-1 1 2 []}]} {-1 2 3 []}]}

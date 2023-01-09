@@ -1,1 +1,1 @@
-map[int]string{-3:"_nothing", -2:"_endofline", -1:"_literal", 0:"A", 1:"T"}
+map[-3:_nothing -2:_endofline -1:_literal 0:A 1:T]

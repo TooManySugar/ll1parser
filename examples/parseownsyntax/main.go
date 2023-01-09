@@ -102,6 +102,7 @@ func isGrammarsEqual(a bnf.Grammar, b bnf.Grammar) bool {
 
 func main() {
 	reference := bnf.SelfGrammar()
+	bnfStr := reference.String()
 
 	parserTable, parserTableNames, ok := tablegen.ToParserTable(reference)
 	if !ok {
@@ -112,7 +113,7 @@ func main() {
 
 	parser := parserimpl.NewLL1Parser(*parserTable, *parserTableNames)
 
-	peekMover := spm.NewSimplePeekMover(reference.String())
+	peekMover := spm.NewSimplePeekMover(bnfStr)
 
 	cst, _, err := parser.Parse(peekMover)
 	if err != nil {
@@ -121,7 +122,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	result, err := fromcst.SelfCSTtoASTBindings().ToAST(cst)
+	result, err := fromcst.SelfCSTtoASTBindings().ToAST(cst, bnfStr)
 	if err != nil {
 		fmt.Fprintln(os.Stderr,
 		             "ERROR: can't build AST from CST:", err.Error())

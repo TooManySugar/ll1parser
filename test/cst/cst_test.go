@@ -11,75 +11,49 @@ import (
 	"strings"
 )
 
-
-type typeName struct {
-	Type int
-	Name string
-	Level int
-}
-
 type namedVisitor struct {
 	level int
 	names map[int]string
-	output *[]typeName
-	visited []int
+	sb *strings.Builder
+	str *string
 }
 
-func NewNamedVisitor(names map[int]string) (v namedVisitor)  {
-	o := make([]typeName, 0)
+func NewNamedVisitor(names map[int]string, str string) (v namedVisitor)  {
+	sb := strings.Builder{}
 	return namedVisitor{
 		level: 0,
 		names: names,
-		output: &o,
-		visited: []int{},
+		sb: &sb,
+		str: &str,
 	}
 }
 
-func (v namedVisitor) Visit(node *cst.Node) (w cst.Visitor) {
+func (v namedVisitor) Visit(node cst.Node) (w cst.Visitor) {
 	if node == nil {
 		return nil
 	}
 
-	if len(node.Name) != 0 {
-		for _, oi := range v.visited {
-			(*v.output)[oi].Name += node.Name
-		}
-	}
-
-	*v.output = append(*v.output, typeName{
-		Type: node.Type,
-		Name: node.Name,
-		Level: v.level,
-	})
-	return namedVisitor {
-		level: v.level + 1,
-		names: v.names,
-		output: v.output,
-		visited: append(v.visited, len(*v.output)-1),
-	}
-}
-
-func FprintTreeNamed(w io.Writer, root cst.Node, namingMap map[int]string) (int, error) {
 	nodeTypeToName := func (name_id int) string {
-		val, ok := namingMap[name_id]
+		val, ok := v.names[name_id]
 		if !ok {
 			return fmt.Sprintf("Unknown_%d", name_id)
 		}
 		return val
 	}
+	fmt.Fprintf(v.sb, "%s%s: string(%s)\n", strings.Repeat("  ", int(v.level)), nodeTypeToName(node.Type()), (*v.str)[node.Pos():node.End()])
 
-	v := NewNamedVisitor(namingMap)
-	cst.Walk(v, root)
-
-
-	sb := strings.Builder{}
-	for _, node := range *v.output {
-		for i := 0; i < (node.Level); i++ {
-			sb.WriteString("  ")
-		}
-		sb.WriteString(fmt.Sprintf("%s: string(%s)\n", nodeTypeToName(node.Type), node.Name))
+	return namedVisitor {
+		level: v.level + 1,
+		names: v.names,
+		sb: v.sb,
+		str: v.str,
 	}
-	return w.Write([]byte(sb.String()))
+}
+
+func FprintTreeNamed(w io.Writer, root cst.Node, namingMap map[int]string, str string) (int, error) {
+	v := NewNamedVisitor(namingMap, str)
+	cst.Walk(v, root)
+	return w.Write([]byte(v.sb.String()))
 }
 
 func TestFprintTreeNamed(t *testing.T) {
@@ -92,282 +66,239 @@ func TestFprintTreeNamed(t *testing.T) {
 	}
 	defer f.Close()
 
-	tree := cst.Node {
-		Type: 0, // syntax
-		Name: "",
-		Childs: []cst.Node{
-			{
-				Type: 1, // rule
-				Name: "",
-				Childs: []cst.Node{
-					{
-						Type: 2, // opt-whitespace
-						Name: "",
-						Childs: []cst.Node{
-							{
-								Type: 8000, // const char
-								Name: " ",
-								Childs: []cst.Node{},
-							},
-							{
-								Type: 2, // opt-whitespace
-								Name: "",
-								Childs: []cst.Node{
-									{
-										Type: 8000, // const char
-										Name: "",
-										Childs: []cst.Node{},
-									},
-								},
-							},
-						},
-					},
-					{
-						Type: 8000, // const char
-						Name: "<",
-						Childs: []cst.Node{},
-					},
-					{
-						Type: 3, // rule-name
-						Name: "",
-						Childs: []cst.Node{
-							{
-								Type: 3, // rule-name
-								Name: "",
-								Childs: []cst.Node{
-									{
-										Type: 3, // rule-name
-										Name: "",
-										Childs: []cst.Node{
-											{
-												Type: 3, // rule-name
-												Name: "",
-												Childs: []cst.Node{
-													{
-														Type: 4, // letter
-														Name: "",
-														Childs: []cst.Node{
-															{
-																Type: 8000, // const char
-																Name: "E",
-																Childs: []cst.Node{},
-															},
-														},
-													},
-												},
-											},
-											{
-												Type: 5, // rule-char
-												Name: "",
-												Childs: []cst.Node{
-													{
-														Type: 4, // letter
-														Name: "",
-														Childs: []cst.Node{
-															{
-																Type: 8000, // const char
-																Name: "x",
-																Childs: []cst.Node{},
-															},
-														},
-													},
-												},
-											},
-										},
-									},
-									{
-										Type: 5, // rule-char
-										Name: "",
-										Childs: []cst.Node{
-											{
-												Type: 4, // letter
-												Name: "",
-												Childs: []cst.Node{
-													{
-														Type: 8000, // const char
-														Name: "p",
-														Childs: []cst.Node{},
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-							{
-								Type: 5, // rule-char
-								Name: "",
-								Childs: []cst.Node{
-									{
-										Type: 4, // letter
-										Name: "",
-										Childs: []cst.Node{
-											{
-												Type: 8000, // const char
-												Name: "r",
-												Childs: []cst.Node{},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-					{
-						Type: 8000, // const char
-						Name: ">",
-						Childs: []cst.Node{},
-					},
-					{
-						Type: 2, // opt-whitespace
-						Name: "",
-						Childs: []cst.Node{
-							{
-								Type: 8000, // const char
-								Name: " ",
-								Childs: []cst.Node{},
-							},
-							{
-								Type: 2, // opt-whitespace
-								Name: "",
-								Childs: []cst.Node{
-									{
-										Type: 8000, // const char
-										Name: "",
-										Childs: []cst.Node{},
-									},
-								},
-							},
-						},
-					},
-					{
-						Type: 8000, // const char
-						Name: "::=",
-						Childs: []cst.Node{},
-					},
-					{
-						Type: 2, // opt-whitespace
-						Name: "",
-						Childs: []cst.Node{
-							{
-								Type: 8000, // const char
-								Name: " ",
-								Childs: []cst.Node{},
-							},
-							{
-								Type: 2, // opt-whitespace
-								Name: "",
-								Childs: []cst.Node{
-									{
-										Type: 8000, // const char
-										Name: "",
-										Childs: []cst.Node{},
-									},
-								},
-							},
-						},
-					},
-					{ // expression
-						Type: 6, // expression
-						Name: "",
-						Childs: []cst.Node{
-							{ // list
-								Type: 8, // list
-								Name: "",
-								Childs: []cst.Node{
-									{ // term
-										Type: 9, // term
-										Name: "",
-										Childs: []cst.Node{
-											{ // literal
-												Type: 10, // literal
-												Name: "",
-												Childs: []cst.Node{
-													{
-														Type: 8000, // const char
-														Name: "\"",
-														Childs: []cst.Node{},
-													},
-													{ // text1
-														Type: 11, // text1
-														Name: "",
-														Childs: []cst.Node{
-															{ // character1
-																Type: 12, // character1
-																Name: "",
-																Childs: []cst.Node{
-																	{ // character
-																		Type: 13, // character
-																		Name: "",
-																		Childs: []cst.Node{
-																			{ // letter
-																				Type: 4, // letter
-																				Name: "",
-																				Childs: []cst.Node{
-																					{ // const
-																						Type: 8000, // char
-																						Name: "A",
-																						Childs: []cst.Node{},
-																					},
-																				},
-																			},
-																		},
-																	},
-																},
-															},
-															{ // text1
-																Type: 11, // text1
-																Name: "",
-																Childs: []cst.Node{
-																	{ // const char
-																		Type: 8000, // const char
-																		Name: "",
-																		Childs: []cst.Node{},
-																	},
-																},
-															},
-														},
-													},
-													{
-														Type: 8000, // const char
-														Name: "\"",
-														Childs: []cst.Node{},
-													},
-												},
-											},
-										},
-									},
-								},
-							},
+	str := " <Expr> ::= \"A\""
 
-						},
-					},
-					{ // line-end
-						Type: 7, // line-end
-						Name: "",
-						Childs: []cst.Node{
-							{
-								Type: 2, // opt-whitespace
-								Name: "",
-								Childs: []cst.Node{
-									{
-										Type: 8000, // const char
-										Name: "",
-										Childs: []cst.Node{},
-									},
+	tree := cst.NewNode(0, // syntax
+		0, 15,
+		// Name: "",
+		[]cst.Node{
+			cst.NewNode(1, // rule
+				0, 15,
+				[]cst.Node{
+					cst.NewNode(2, // opt-whitespace
+						0, 1,
+						[]cst.Node{
+							cst.NewNode(8000, // const char
+								0, 1,
+								nil,
+							),
+							cst.NewNode(2, // opt-whitespace
+								1, 1,
+								[]cst.Node{
+									cst.NewNode(8000, // const char
+										1, 1,
+										nil,
+									),
 								},
-							},
-							{ // EOL
-								Type: 8001,
-								Name: "",
-								Childs: []cst.Node{},
-							},
+							),
 						},
-					},
+					),
+					cst.NewNode(8000, // const char
+						1, 2,
+						nil,
+					),
+					cst.NewNode(3, // rule-name
+						2, 6,
+						[]cst.Node{
+							cst.NewNode(3, // rule-name
+								2, 5,
+								[]cst.Node{
+									cst.NewNode(3, // rule-name
+										2, 4,
+										[]cst.Node{
+											cst.NewNode(3, // rule-name
+												2, 3,
+												[]cst.Node{
+													cst.NewNode(4, // letter
+														2, 3,
+														[]cst.Node{
+															cst.NewNode(8000, // const char
+																2, 3,
+																nil,
+															),
+														},
+													),
+												},
+											),
+											cst.NewNode(5, // rule-char
+												3, 4,
+												[]cst.Node{
+													cst.NewNode(4, // letter
+														3, 4,
+														[]cst.Node{
+															cst.NewNode(8000, // const char
+																3, 4,
+																nil,
+															),
+														},
+													),
+												},
+											),
+										},
+									),
+									cst.NewNode(5, // rule-char
+										4, 5,
+										[]cst.Node{
+											cst.NewNode(4, // letter
+												4, 5,
+												[]cst.Node{
+													cst.NewNode(8000, // const char
+														4, 5,
+														nil,
+													),
+												},
+											),
+										},
+									),
+								},
+							),
+							cst.NewNode(5, // rule-char
+								5, 6,
+								[]cst.Node{
+									cst.NewNode(4, // letter
+										5, 6,
+										[]cst.Node{
+											cst.NewNode(8000, // const char
+												5, 6,
+												nil,
+											),
+										},
+									),
+								},
+							),
+						},
+					),
+					cst.NewNode(8000, // const char
+						6, 7,
+						nil,
+					),
+					cst.NewNode(2, // opt-whitespace
+						7, 8,
+						[]cst.Node{
+							cst.NewNode(8000, // const char]
+								7, 8,
+								nil,
+							),
+							cst.NewNode(2, // opt-whitespace
+								8, 8,
+								[]cst.Node{
+									cst.NewNode(8000, // const char
+										8, 8,
+										nil,
+									),
+								},
+							),
+						},
+					),
+					cst.NewNode(8000, // const char
+						8, 11,
+						nil,
+					),
+					cst.NewNode(2, // opt-whitespace
+						11, 12,
+						[]cst.Node{
+							cst.NewNode(8000, // const char
+								11, 12,
+								nil,
+							),
+							cst.NewNode(2, // opt-whitespace
+								12, 12,
+								[]cst.Node{
+									cst.NewNode(8000, // const char
+										12, 12,
+										nil,
+									),
+								},
+							),
+						},
+					),
+					cst.NewNode(6, // expression
+						12, 15,
+						[]cst.Node{
+							cst.NewNode(8, // list
+								12, 15,
+								[]cst.Node{
+									cst.NewNode(9, // term
+										12, 15,
+										[]cst.Node{
+											cst.NewNode(10, // literal
+												12, 15,
+												[]cst.Node{
+													cst.NewNode(8000, // const char
+														12, 13,
+														nil,
+													),
+													cst.NewNode( // text1
+														11, // text1
+														13, 14,
+														[]cst.Node{
+															cst.NewNode( // character1
+																12, // character1
+																13, 14,
+																[]cst.Node{
+																	cst.NewNode(13, // character
+																		13, 14,
+																		[]cst.Node{
+																			cst.NewNode(4, // letter
+																				13, 14,
+																				[]cst.Node{
+																					cst.NewNode(8000, // char
+																						13, 14,
+																						nil,
+																					),
+																				},
+																			),
+																		},
+																	),
+																},
+															),
+															cst.NewNode( // text1
+																11, // text1
+																14, 14,
+																[]cst.Node{
+																	cst.NewNode( // const char
+																		8000, // const char
+																		14, 14,
+																		nil,
+																	),
+																},
+															),
+														},
+													),
+													cst.NewNode(8000, // const char
+														14, 15,
+														nil,
+													),
+												},
+											),
+										},
+									),
+								},
+							),
+						},
+					),
+					cst.NewNode(7, // line-end
+						15, 15,
+						[]cst.Node{
+							cst.NewNode(2, // opt-whitespace
+								15, 15,
+								[]cst.Node{
+									cst.NewNode(8000, // const char
+										15, 15,
+										nil,
+									),
+								},
+							),
+							cst.NewNode(8001, 15,
+								15,
+								nil,
+							),
+						},
+					),
 				},
-			},
+			),
 		},
-	}
+	)
 
 	typeNames := map[int]string {
 		0: "syntax",
@@ -392,7 +323,7 @@ func TestFprintTreeNamed(t *testing.T) {
 	}
 
 	sb := bytes.Buffer{}
-	FprintTreeNamed(&sb, tree, typeNames)
+	FprintTreeNamed(&sb, tree, typeNames, str)
 
 	tc.ReaderContentMustBeEqual(t, f, &sb)
 }

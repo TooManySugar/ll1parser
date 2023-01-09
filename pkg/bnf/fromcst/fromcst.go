@@ -2,7 +2,6 @@ package fromcst
 
 import (
 	"fmt"
-	"strings"
 	"sort"
 	"cst"
 	"bnf"
@@ -15,17 +14,17 @@ import (
 // When Traverse complete returns nil
 // Nodes on isTypeIgnored(Node.type) == true are ignored in traverse
 // This function used by all functions in chain from ToAST
-func lrTraverse(root *cst.Node,
+func lrTraverse(root cst.Node,
                 isTypeIgnored func(int) bool,
                 isSearchedType func(int) bool,
-                fOnNode func(*cst.Node) error) error {
+                fOnNode func(cst.Node) error) error {
 
-	stack := []*cst.Node{}
-	stackPush := func(node *cst.Node) {
+	stack := []cst.Node{}
+	stackPush := func(node cst.Node) {
 		stack = append(stack, node)
 	}
 
-	stackPop := func() (*cst.Node, bool) {
+	stackPop := func() (cst.Node, bool) {
 		lenStack := len(stack)
 		if lenStack == 0 {
 			return nil, false
@@ -45,9 +44,9 @@ func lrTraverse(root *cst.Node,
 	for !stackIsEmpty() {
 		node, _ := stackPop()
 
-		lenChilds := len(node.Childs)
+		lenChilds := len(node.Childs())
 
-		if isSearchedType(node.Type) {
+		if isSearchedType(node.Type()) {
 			err := fOnNode(node)
 			if err != nil {
 				return err
@@ -56,9 +55,9 @@ func lrTraverse(root *cst.Node,
 		}
 
 		for i := lenChilds - 1; i >= 0; i-- {
-			nodeChild := &node.Childs[i]
+			nodeChild := node.Childs()[i]
 
-			if isTypeIgnored(nodeChild.Type) {
+			if isTypeIgnored(nodeChild.Type()) {
 				continue
 			}
 
@@ -69,18 +68,8 @@ func lrTraverse(root *cst.Node,
 	return nil
 }
 
-// traverses tree (LR) collecting all names of Nodes.Type == builtInLiteralType
-// in resulting
-func parseAnyName(node *cst.Node, builtInLiteralType int) string {
-
-	sb := strings.Builder{}
-
-	lrTraverse(node,
-	           func(int) bool {return false},
-	           func(t int) bool{return t == builtInLiteralType},
-	           func(node *cst.Node) error {sb.WriteString(node.Name); return nil})
-
-	return sb.String()
+func nodeName(node cst.Node, str string) string {
+	return str[node.Pos():node.End()]
 }
 
 type BNFCSTtoASTBindings struct {
@@ -118,9 +107,9 @@ type BNFCSTtoASTBindings struct {
 // Ignores Nodes with Node.Type ∈ b.IgnoreNodeTypes
 // When Traverse complete returns nil
 // This function used by all BNF's constructors
-func (b BNFCSTtoASTBindings) lrTraverse(root *cst.Node,
+func (b BNFCSTtoASTBindings) lrTraverse(root cst.Node,
 	                                    untilType int,
-	                                    f func(*cst.Node) error,
+	                                    f func(cst.Node) error,
 	                                    ) error {
 
 	isNodeIgnored := func(nodeType int) bool {
@@ -136,13 +125,13 @@ func (b BNFCSTtoASTBindings) lrTraverse(root *cst.Node,
 	return lrTraverse(root, isNodeIgnored, isSearchedType, f)
 }
 
-func (b BNFCSTtoASTBindings) parseSymbol(symbol *cst.Node) (*bnf.Symbol, error) {
+func (b BNFCSTtoASTBindings) parseSymbol(symbol cst.Node, str string) (*bnf.Symbol, error) {
 	var res bnf.Symbol
 
 	searchComplete := fmt.Errorf("headSearchComplete")
 
-	doOnTerminalName := func(termNameNode *cst.Node) error {
-		if name := parseAnyName(termNameNode, b.BuiltInLiteralType); len(name) == 0 {
+	doOnTerminalName := func(termNameNode cst.Node) error {
+		if name := nodeName(termNameNode, str); len(name) == 0 {
 			res = bnf.SymbolNothing{}
 		} else {
 			res = bnf.SymbolTerminal{Name: name}
@@ -157,8 +146,8 @@ func (b BNFCSTtoASTBindings) parseSymbol(symbol *cst.Node) (*bnf.Symbol, error) 
 		}
 	}
 
-	doOnNonTerminalName := func(nontermNameNode *cst.Node) error {
-		res = bnf.SymbolNonTerminal{Name: parseAnyName(nontermNameNode, b.BuiltInLiteralType)}
+	doOnNonTerminalName := func(nontermNameNode cst.Node) error {
+		res = bnf.SymbolNonTerminal{Name: nodeName(nontermNameNode, str)}
 		return searchComplete
 	}
 
@@ -168,14 +157,14 @@ func (b BNFCSTtoASTBindings) parseSymbol(symbol *cst.Node) (*bnf.Symbol, error) 
 	}
 
 	return nil, fmt.Errorf("could not determine terminal type of `%s`",
-	                       parseAnyName(symbol, b.BuiltInLiteralType))
+	                       nodeName(symbol, str))
 }
-func (b BNFCSTtoASTBindings) parseSequence(sequence *cst.Node,
+func (b BNFCSTtoASTBindings) parseSequence(sequence cst.Node, str string,
 										   ) (*bnf.Sequence, error) {
 	var res bnf.Sequence
 
-	doOnSymbol := func(symbolNode *cst.Node) error {
-		symbol, err := b.parseSymbol(symbolNode)
+	doOnSymbol := func(symbolNode cst.Node) error {
+		symbol, err := b.parseSymbol(symbolNode, str)
 		if err != nil {
 			return err
 		}
@@ -190,12 +179,13 @@ func (b BNFCSTtoASTBindings) parseSequence(sequence *cst.Node,
 	return &res, nil
 }
 
-func (b BNFCSTtoASTBindings) parseSubstitution(expression *cst.Node,
-	                                           ) (*bnf.Substitution, error) {
+func (b BNFCSTtoASTBindings) parseSubstitution(expression cst.Node,
+                                               str string,
+                                               ) (*bnf.Substitution, error) {
 	var res bnf.Substitution
 
-	doOnSequence := func(sequenceNode *cst.Node) error {
-		sequence, err := b.parseSequence(sequenceNode)
+	doOnSequence := func(sequenceNode cst.Node) error {
+		sequence, err := b.parseSequence(sequenceNode, str)
 		if err != nil {
 			return err
 		}
@@ -211,16 +201,16 @@ func (b BNFCSTtoASTBindings) parseSubstitution(expression *cst.Node,
 	return &res, nil
 }
 
-func (b BNFCSTtoASTBindings) parseRule(rule *cst.Node) (*bnf.Rule, error) {
+func (b BNFCSTtoASTBindings) parseRule(rule cst.Node, str string) (*bnf.Rule, error) {
 	var res bnf.Rule
 
-	// str := parseAnyName(rule, b.BuiltInLiteralType)
+	// str := nodeName(rule, str)
 	// res.Head.Name = str
 
 	searchComplete := fmt.Errorf("headSearchComplete")
 
-	doOnHead := func(ruleNameNode *cst.Node) error {
-		res.Head.Name = parseAnyName(ruleNameNode, b.BuiltInLiteralType)
+	doOnHead := func(ruleNameNode cst.Node) error {
+		res.Head.Name = nodeName(ruleNameNode, str)
 		return searchComplete
 	}
 
@@ -231,11 +221,11 @@ func (b BNFCSTtoASTBindings) parseRule(rule *cst.Node) (*bnf.Rule, error) {
 		// of error
 
 		return nil, fmt.Errorf("could not find rule name in `%s`",
-		                       parseAnyName(rule, b.BuiltInLiteralType))
+		                       nodeName(rule, str))
 	}
 
-	doOnSubstitution := func(ruleNode *cst.Node) error {
-		substitution, err := b.parseSubstitution(ruleNode)
+	doOnSubstitution := func(ruleNode cst.Node) error {
+		substitution, err := b.parseSubstitution(ruleNode, str)
 		if err != nil {
 			return err
 		}
@@ -247,7 +237,7 @@ func (b BNFCSTtoASTBindings) parseRule(rule *cst.Node) (*bnf.Rule, error) {
 	if err != searchComplete {
 		if err == nil {
 			return nil, fmt.Errorf("could not find rule substitution in `%s`",
-			                       parseAnyName(rule, b.BuiltInLiteralType))
+			                       nodeName(rule, str))
 		}
 
 		return nil, err
@@ -256,14 +246,14 @@ func (b BNFCSTtoASTBindings) parseRule(rule *cst.Node) (*bnf.Rule, error) {
 	return &res, nil
 }
 
-func (b BNFCSTtoASTBindings) ToAST(root *cst.Node) (*bnf.Grammar, error) {
+func (b BNFCSTtoASTBindings) ToAST(root cst.Node, str string) (*bnf.Grammar, error) {
 
 	sort.Sort(sort.IntSlice(b.IgnoreNodeTypes))
 
 	var res bnf.Grammar
 
-	doOnRule := func(ruleNode *cst.Node) error {
-		rule, err := b.parseRule(ruleNode)
+	doOnRule := func(ruleNode cst.Node) error {
+		rule, err := b.parseRule(ruleNode, str)
 		if err != nil {
 			return err
 		}

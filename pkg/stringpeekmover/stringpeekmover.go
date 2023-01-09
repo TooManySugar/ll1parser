@@ -25,6 +25,10 @@ func (pm *simplePeekMover_t) Move()  {
 	pm.pos++
 }
 
+func (pm *simplePeekMover_t) Pos() int {
+	return pm.pos
+}
+
 func (pm *simplePeekMover_t) Reset()  {
 	pm.pos = 0
 }
