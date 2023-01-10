@@ -3,11 +3,37 @@ package fromcst
 import (
 	"fmt"
 	"sort"
+	"errors"
 	"cst"
 	"bnf"
 )
 
-// Stack based tree LR traverse traversing cst
+type flexVisitor struct {
+	isTypeIgnored func(int) bool
+	isSearchedType func(int) bool
+	fOnNode func(cst.Node) error
+
+	err *error
+}
+
+func (v flexVisitor) Visit(node cst.Node) (w cst.Visitor) {
+	if *v.err != nil {
+		return nil
+	}
+
+	if v.isTypeIgnored(node.Type()) {
+		return nil
+	}
+
+	if v.isSearchedType(node.Type()) {
+		(*v.err) = v.fOnNode(node)
+		return nil
+	}
+
+	return v
+}
+
+// depth-first cst search
 // When meets isSearchedType(Node.type) == true executes fOnNode on node
 // If fOnNode returned error immediately returns with fOnNode's error
 // Childs of node on which fOnNode executed are ignored
@@ -19,53 +45,16 @@ func lrTraverse(root cst.Node,
                 isSearchedType func(int) bool,
                 fOnNode func(cst.Node) error) error {
 
-	stack := []cst.Node{}
-	stackPush := func(node cst.Node) {
-		stack = append(stack, node)
-	}
+	var err error = nil
+	var v flexVisitor
+	v.err = &err
+	v.isTypeIgnored = isTypeIgnored
+	v.isSearchedType = isSearchedType
+	v.fOnNode = fOnNode
 
-	stackPop := func() (cst.Node, bool) {
-		lenStack := len(stack)
-		if lenStack == 0 {
-			return nil, false
-		}
+	cst.Walk(v, root)
 
-		res := stack[lenStack-1]
-		stack = stack[:lenStack-1]
-		return res, true
-	}
-
-	stackIsEmpty := func() bool {
-		return len(stack) == 0
-	}
-
-	stackPush(root)
-
-	for !stackIsEmpty() {
-		node, _ := stackPop()
-
-		lenChilds := len(node.Childs())
-
-		if isSearchedType(node.Type()) {
-			err := fOnNode(node)
-			if err != nil {
-				return err
-			}
-			continue
-		}
-
-		for i := lenChilds - 1; i >= 0; i-- {
-			nodeChild := node.Childs()[i]
-
-			if isTypeIgnored(nodeChild.Type()) {
-				continue
-			}
-
-			stackPush(nodeChild)
-		}
-	}
-
-	return nil
+	return err
 }
 
 func nodeName(node cst.Node, str string) string {
@@ -128,7 +117,7 @@ func (b BNFCSTtoASTBindings) lrTraverse(root cst.Node,
 func (b BNFCSTtoASTBindings) parseSymbol(symbol cst.Node, str string) (*bnf.Symbol, error) {
 	var res bnf.Symbol
 
-	searchComplete := fmt.Errorf("headSearchComplete")
+	searchComplete := errors.New("headSearchComplete")
 
 	doOnTerminalName := func(termNameNode cst.Node) error {
 		if name := nodeName(termNameNode, str); len(name) == 0 {
@@ -159,6 +148,7 @@ func (b BNFCSTtoASTBindings) parseSymbol(symbol cst.Node, str string) (*bnf.Symb
 	return nil, fmt.Errorf("could not determine terminal type of `%s`",
 	                       nodeName(symbol, str))
 }
+
 func (b BNFCSTtoASTBindings) parseSequence(sequence cst.Node, str string,
 										   ) (*bnf.Sequence, error) {
 	var res bnf.Sequence
@@ -207,7 +197,7 @@ func (b BNFCSTtoASTBindings) parseRule(rule cst.Node, str string) (*bnf.Rule, er
 	// str := nodeName(rule, str)
 	// res.Head.Name = str
 
-	searchComplete := fmt.Errorf("headSearchComplete")
+	searchComplete := errors.New("headSearchComplete")
 
 	doOnHead := func(ruleNameNode cst.Node) error {
 		res.Head.Name = nodeName(ruleNameNode, str)
