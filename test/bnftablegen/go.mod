@@ -6,7 +6,7 @@ replace (
 	bnf => ./../../pkg/bnf
 	bnf/tablegen => ./../../pkg/bnf/tablegen
 	cst => ./../../pkg/cst
-	parserimpl => ./../../pkg/parserimpl
+	parser => ./../../pkg/parser
 	testcommon => ./../testcommon
 	testgrammars => /../testgrammars
 )
@@ -20,5 +20,5 @@ require (
 
 require (
 	cst v0.0.0-00010101000000-000000000000 // indirect
-	parserimpl v0.0.0-00010101000000-000000000000 // indirect
+	parser v0.0.0-00010101000000-000000000000 // indirect
 )

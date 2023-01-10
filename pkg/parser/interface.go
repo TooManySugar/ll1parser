@@ -1,4 +1,4 @@
-package parserimpl
+package parser
 
 import (
 	"cst"

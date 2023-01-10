@@ -10,7 +10,7 @@ import (
 
 	"bnf"
 	"bnf/tablegen"
-	"parserimpl"
+	"parser"
 	tc "testcommon"
 	tg "testgrammars"
 )
@@ -25,28 +25,28 @@ func TestCustomParserCanParse(t *testing.T) {
 	// <A> "T^EOL
 	// <T>        B   C
 
-	table :=  map[int]map[byte][]parserimpl.ParserOp {
+	table :=  map[int]map[byte][]parser.ParserOp {
 		0: {
-			'"': []parserimpl.ParserOp{
-				parserimpl.OpTerminal("\""),
-				parserimpl.OpNonTerminal(1),
-				parserimpl.OpTerminal("^"),
-				parserimpl.OpNonTerminal(parserimpl.BuiltinEOL),
+			'"': []parser.ParserOp{
+				parser.OpTerminal("\""),
+				parser.OpNonTerminal(1),
+				parser.OpTerminal("^"),
+				parser.OpNonTerminal(parser.BuiltinEOL),
 			},
 		},
 		1: {
-			'B': []parserimpl.ParserOp{
-				parserimpl.OpTerminal("B"),
+			'B': []parser.ParserOp{
+				parser.OpTerminal("B"),
 			},
-			'C': []parserimpl.ParserOp{
-				parserimpl.OpTerminal("C"),
+			'C': []parser.ParserOp{
+				parser.OpTerminal("C"),
 			},
 		},
 	}
 
 	// map[int]string{0: "A", 1: "T"
 
-	parser := parserimpl.NewLL1Parser(table, map[int]string{})
+	parser := parser.NewLL1Parser(table, map[int]string{})
 
 	src := "\"B^\n"
 
@@ -72,7 +72,7 @@ type ParserTestCase struct {
 const refFormat = "%v"
 
 func updateTestsOnParser(t *testing.T,
-	parser parserimpl.LL1Parser,
+	parser parser.LL1Parser,
 	tests []ParserTestCase) {
 	for i, test := range tests {
 		if test.output.err != nil {
@@ -110,7 +110,7 @@ func updateTestsOnParser(t *testing.T,
 }
 
 func performTestsOnParser(t *testing.T,
-                          parser parserimpl.LL1Parser,
+                          parser parser.LL1Parser,
                           tests []ParserTestCase) {
 	for i, test := range tests {
 
@@ -227,7 +227,7 @@ func TestLinearMultiRuleParserParse(t *testing.T) {
 		},
 	}
 
-	parser := parserimpl.NewLL1Parser(*table, *tableNames)
+	parser := parser.NewLL1Parser(*table, *tableNames)
 
 	// updateTestsOnParser(t, parser, tests)
 	performTestsOnParser(t, parser, tests)
@@ -263,7 +263,7 @@ func TestOrParserParse(t *testing.T) {
 		},
 	}
 
-	parser := parserimpl.NewLL1Parser(*table, *tableNames)
+	parser := parser.NewLL1Parser(*table, *tableNames)
 
 	// updateTestsOnParser(t, parser, tests)
 	performTestsOnParser(t, parser, tests)
@@ -307,7 +307,7 @@ func TestResolvedLRecursiveParserParse(t *testing.T) {
 		},
 	}
 
-	parser := parserimpl.NewLL1Parser(*table, *tableNames)
+	parser := parser.NewLL1Parser(*table, *tableNames)
 
 	// updateTestsOnParser(t, parser, tests)
 	performTestsOnParser(t, parser, tests)
@@ -324,7 +324,7 @@ func TestBNFParserCanParse1(t *testing.T) {
 		return
 	}
 
-	parser := parserimpl.NewLL1Parser(*table, *tableNames)
+	parser := parser.NewLL1Parser(*table, *tableNames)
 
 	src := " <A-2-B> ::= \"A000123\" \"B\" | \"B\"| \"A\" |\"A\"|\"A\"   \n" +
 	       " <A2-B-2-B>::= <B> "
@@ -363,7 +363,7 @@ func TestParserParseNamingMap(t *testing.T) {
 		ref[k] = v
 	}
 
-	parser := parserimpl.NewLL1Parser(*table, *tableNames)
+	parser := parser.NewLL1Parser(*table, *tableNames)
 
 	src := " <A-2-B> ::= \"A000123\" \"B\" | \"B\"| \"A\" |\"A\"|\"A\"   \n" +
 	       " <A2-B-2-B>::= <B> "

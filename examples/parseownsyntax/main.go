@@ -11,7 +11,7 @@ import (
 	"bnf"
 	"bnf/tablegen"
 	"bnf/fromcst"
-	"parserimpl"
+	"parser"
 )
 
 func isNonTerminalsEqual(a bnf.SymbolNonTerminal,
@@ -110,7 +110,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	parser := parserimpl.NewLL1Parser(*parserTable, *parserTableNames)
+	parser := parser.NewLL1Parser(*parserTable, *parserTableNames)
 
 	cst, _, err := parser.Parse(bnfStr)
 	if err != nil {

@@ -1,5 +1,5 @@
 // Implementation of LL1Parser interface
-package parserimpl
+package parser
 
 import (
 	"fmt"

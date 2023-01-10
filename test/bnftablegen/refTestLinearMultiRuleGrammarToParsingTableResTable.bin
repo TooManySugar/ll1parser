@@ -1,1 +1,1 @@
-map[int]map[uint8][]parserimpl.ParserOp{0:map[uint8][]parserimpl.ParserOp{0x41:[]parserimpl.ParserOp{parserimpl.terminal_t{value:"A"}, parserimpl.terminal_t{value:"::="}, parserimpl.nonTerminal_t{name:1}}}, 1:map[uint8][]parserimpl.ParserOp{0x43:[]parserimpl.ParserOp{parserimpl.terminal_t{value:"C"}}}}
+map[int]map[uint8][]parser.ParserOp{0:map[uint8][]parser.ParserOp{0x41:[]parser.ParserOp{parser.terminal_t{value:"A"}, parser.terminal_t{value:"::="}, parser.nonTerminal_t{name:1}}}, 1:map[uint8][]parser.ParserOp{0x43:[]parser.ParserOp{parser.terminal_t{value:"C"}}}}

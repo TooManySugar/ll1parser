@@ -4,7 +4,7 @@ package tablegen
 import (
 	"fmt"
 	"bnf"
-	"parserimpl"
+	"parser"
 )
 
 const EOS = byte(0)
@@ -367,10 +367,10 @@ func calcTableRow(g bnf.Grammar,
                   firsts *map[int]byteSet,
                   follows *map[int]byteSet,
                   nonTerminalsMap map[string]int,
-                  ruleIndex int) map[byte][]parserimpl.ParserOp {
+                  ruleIndex int) map[byte][]parser.ParserOp {
 	rule := g.Rules[ruleIndex]
 
-    res := map[byte][]parserimpl.ParserOp{}
+    res := map[byte][]parser.ParserOp{}
 
 	for _, sequence := range rule.Tail.Sequences {
 
@@ -392,7 +392,7 @@ func calcTableRow(g bnf.Grammar,
 						fmt.Println(v)
 						panic("multiple")
 					}
-					res[byte(followTerm)] = []parserimpl.ParserOp{}
+					res[byte(followTerm)] = []parser.ParserOp{}
 				}
 				// panic("Epsilon can't go here yet")
 				// For each term in ruleFollows add empty []ParserOp
@@ -408,7 +408,7 @@ func calcTableRow(g bnf.Grammar,
 						panic("can't cast bnf.TypeTerminal symbol to it's native type")
 					}
 
-					res[byte(term)] = append(res[byte(term)], parserimpl.OpTerminal(bTerm.Name))
+					res[byte(term)] = append(res[byte(term)], parser.OpTerminal(bTerm.Name))
 				}
 				case bnf.TypeNonTerminal: {
 					bNonTerm, ok := symbol.(bnf.SymbolNonTerminal)
@@ -419,14 +419,14 @@ func calcTableRow(g bnf.Grammar,
 					ntIndex, ok := nonTerminalsMap[bNonTerm.Name]
 					if !ok {
 						if bNonTerm.Name == "EOL" {
-							ntIndex = parserimpl.BuiltinEOL
+							ntIndex = parser.BuiltinEOL
 						} else {
 							panic("HERE")
 						}
 					}
 
 					res[byte(term)] = append(res[byte(term)],
-						parserimpl.OpNonTerminal(ntIndex))
+						parser.OpNonTerminal(ntIndex))
 				}
 				case bnf.TypeNothing: {
 					if len(sequence.Symbols) > 1 {
@@ -448,15 +448,15 @@ func calcTableRow(g bnf.Grammar,
 func calcTable(g bnf.Grammar,
                firsts *map[int]byteSet,
                follows *map[int]byteSet,
-               nonTerminalsMap map[string]int) map[int]map[byte][]parserimpl.ParserOp {
-	res := map[int]map[byte][]parserimpl.ParserOp{}
+               nonTerminalsMap map[string]int) map[int]map[byte][]parser.ParserOp {
+	res := map[int]map[byte][]parser.ParserOp{}
 	for ruleNum := range g.Rules {
 		res[ruleNum] = calcTableRow(g, firsts, follows, nonTerminalsMap, ruleNum)
 	}
 	return res
 }
 
-func ToParserTable(g bnf.Grammar) (*map[int]map[byte][]parserimpl.ParserOp, *map[int]string, bool) {
+func ToParserTable(g bnf.Grammar) (*map[int]map[byte][]parser.ParserOp, *map[int]string, bool) {
 
 	// TODO: condtional checks here
 
