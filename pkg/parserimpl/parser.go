@@ -3,17 +3,18 @@ package parserimpl
 
 import (
 	"fmt"
+	"bytes"
+	"io"
 	"cst"
-	"parserinterfaces"
 )
 
 // Parser operands types
 const (
-	nonTerminal int = iota
-	terminal
-	function
-	opEOS
-	opChar
+	opTypeNonTerminal int = iota
+	opTypeTerminal
+	opTypeFunction
+	opTypeEOS
+	opTypeChar
 )
 
 // builin terminal types
@@ -43,10 +44,10 @@ func OpNonTerminal(n int) ParserOp {
 }
 
 func (nt nonTerminal_t) parserOpType() int {
-	return nonTerminal
+	return opTypeNonTerminal
 }
 
-func (nt nonTerminal_t) GetName() int {
+func (nt nonTerminal_t) Name() int {
 	return nt.name
 }
 
@@ -60,56 +61,73 @@ func OpTerminal(s string) ParserOp {
 }
 
 func (t terminal_t) parserOpType() int {
-	return terminal
+	return opTypeTerminal
 }
 
-func (t terminal_t) GetValue() string {
+func (t terminal_t) Value() string {
 	return t.value
 }
 
 
-
 type function_t struct {
-	Name int
-	Pos int
-	Amount int
+	name int
+	pos int
+	amount int
+}
+
+func opFunction(name int, pos int, amount int) ParserOp {
+	return function_t {
+		name: name,
+		pos: pos,
+		amount: amount,
+	}
 }
 
 func (f function_t) parserOpType() int {
-	return function
+	return opTypeFunction
 }
 
-func (f function_t) GetName() int {
-	return f.Name
+func (f function_t) Name() int {
+	return f.name
 }
 
-func (f function_t) GetPos() int {
-	return f.Pos
+func (f function_t) Pos() int {
+	return f.pos
 }
 
-func (f function_t) GetAmount() int {
-	return f.Amount
+func (f function_t) Amount() int {
+	return f.amount
 }
 
 
 type opEOS_t struct {
 }
 
+func opEOS() ParserOp {
+	return opEOS_t{}
+}
+
 func (e opEOS_t) parserOpType() int {
-	return opEOS
+	return opTypeEOS
 }
 
 
 type opChar_t struct {
-	Value byte
+	value byte
+}
+
+func opChar(value byte) ParserOp {
+	return opChar_t{
+		value: value,
+	}
 }
 
 func (c opChar_t) parserOpType() int {
-	return opChar
+	return opTypeChar
 }
 
-func (c opChar_t) GetValue() byte {
-	return c.Value
+func (c opChar_t) Value() byte {
+	return c.value
 }
 
 type ParserOpList []ParserOp
@@ -124,7 +142,7 @@ type ll1parser_t struct {
 }
 
 func NewLL1Parser(table map[int]map[byte][]ParserOp,
-	              names map[int]string) parserinterfaces.LL1Parser {
+	              names map[int]string) LL1Parser {
 	return ll1parser_t{table: table, names: names}
 }
 
@@ -179,8 +197,284 @@ func (prodStack ll1parserProdStack) Len() int {
 	return len(prodStack.stack)
 }
 
+type ll1parserScanner struct {
+	src []byte
+	offset int
+	// lineOffset
+	// onLineOffset
+}
 
-func (p ll1parser_t) Parse(in parserinterfaces.LL1ParserReader) (cst.Node, *map[int]string, error) {
+func (s *ll1parserScanner) peek() byte {
+	if s.offset >= len(s.src) {
+		return byte(0)
+	}
+	return s.src[s.offset]
+}
+
+func (s *ll1parserScanner) next() {
+	s.offset++
+}
+
+func (s *ll1parserScanner) aPos() int {
+	return s.offset
+}
+
+func charCode(char byte) string {
+	return fmt.Sprintf("'%c' (%d)", char, char)
+}
+
+type realParser struct {
+	table map[int]map[byte][]ParserOp
+	names map[int]string
+	scanner ll1parserScanner
+	opStack ll1parserOpStack
+	prodStack ll1parserProdStack
+}
+
+func (p *realParser) processTableNonTerminal(name int) error {
+	nodeTypeName := func (name_id int) string {
+		val, ok := p.names[name_id]
+		if !ok {
+			return fmt.Sprintf("Unknown_%d", name_id)
+		}
+		return val
+	}
+
+	ruleMap, ok := p.table[name]
+	if !ok {
+		// Table error
+		return fmt.Errorf("no rules for non terminal: %s", nodeTypeName(name))
+	}
+
+	opsToPush, ok := ruleMap[p.scanner.peek()]
+	if !ok {
+		// Parsing error
+		return fmt.Errorf("no rules for %s and non terminal op <%s>",
+			           charCode(p.scanner.peek()),
+			           nodeTypeName(name))
+	}
+
+	p.opStack.Push(
+		opFunction(name, p.scanner.aPos(), len(opsToPush)))
+
+	for i := len(opsToPush) - 1; i >= 0; i -- {
+		p.opStack.Push(opsToPush[i])
+	}
+
+	return nil
+}
+
+func (p *realParser) processBuiltinNonTerminal(name int) error {
+	switch name {
+	case -2:
+		input := p.scanner.peek()
+
+		switch input {
+		case '\n':
+			p.opStack.Push(
+				opFunction(name, p.scanner.aPos(), 1))
+			p.opStack.Push(OpTerminal("\n"))
+			return nil
+		case '\r':
+			p.opStack.Push(
+				opFunction(name, p.scanner.aPos(), 2))
+			p.opStack.Push(OpTerminal("\n"))
+			p.opStack.Push(OpTerminal("\r"))
+			return nil
+		default:
+			// Parsing error
+			return fmt.Errorf("no rules for %s and builtin terminal op <EOL>",
+			                  charCode(p.scanner.peek()))
+		}
+	}
+	return fmt.Errorf("unknown built in type: %d", name)
+}
+
+func (p *realParser) processNonTerminal(nt nonTerminal_t) error {
+	name := nt.Name()
+	if name >= 0 {
+		return p.processTableNonTerminal(name)
+	} else {
+		return p.processBuiltinNonTerminal(name)
+	}
+}
+
+func (p *realParser) processTerminal(t terminal_t) {
+	tValue := t.Value()
+
+	p.opStack.Push(
+		opFunction(builtinTerminal, p.scanner.aPos(), len(tValue)))
+	for i := len(tValue) - 1; i >= 0; i -- {
+		p.opStack.Push(opChar(tValue[i]))
+	}
+}
+
+func (p *realParser) processFunction(f function_t) {
+	name := f.Name()
+	amount := f.Amount()
+	if amount == 0 {
+		p.prodStack.Push(cst.NewNode(name,
+		                             p.scanner.aPos(),
+		                             p.scanner.aPos(),
+		                             []cst.Node{
+		                                 cst.NewNode(builtinNothing,
+		                                     p.scanner.aPos(),
+		                                     p.scanner.aPos(),
+		                                     nil),
+		                             }))
+		return
+	}
+
+	var childs []cst.Node
+
+	discard := (name == builtinTerminal || name == builtinEOL)
+	if !discard {
+		childs = make([]cst.Node, amount)
+	}
+
+	for i := amount - 1; i >= 0; i-- {
+		node, ok := p.prodStack.Pop()
+		if !ok {
+			panic("trying to pop from empty stack")
+		}
+
+		if !discard {
+			childs[i] = node
+			continue
+		}
+
+		if node.Type() != builtinTerminal {
+			panic("Tring to combine chars of terminal from non chars type")
+		}
+	}
+
+	p.prodStack.Push(cst.NewNode(name, f.Pos(), p.scanner.aPos(), childs))
+}
+
+func (p *realParser) processEOS() (cst.Node, *map[int]string, error) {
+	if p.scanner.peek() != byte(0) {
+		// fmt.Println("expected end of input got: ", in.Peek())
+		// Parsing error Unexpected EOF
+		return nil, nil, fmt.Errorf("expected end of input got %s",
+									charCode(p.scanner.peek()))
+	}
+	// fmt.Println("Parsed successfully")
+
+	n, ok := p.prodStack.Pop()
+	if !ok {
+		// Table error too
+		return nil, nil, fmt.Errorf("prod stack empty")
+	}
+
+	ret_names := p.names
+	ret_names[builtinTerminal] = "_literal"
+	ret_names[builtinEOL]      = "_endofline"
+	ret_names[builtinNothing]  = "_nothing"
+
+	return n, &ret_names, nil
+}
+
+func (p *realParser) processChar(c opChar_t) error {
+	if c.Value() != p.scanner.peek() {
+		// Parsing error
+		return fmt.Errorf("expected char %s, got %s",
+		                  charCode(c.Value()),
+		                  charCode(p.scanner.peek()))
+	}
+
+	p.prodStack.Push(
+		cst.NewNode(builtinTerminal,
+		            p.scanner.aPos(),
+		            p.scanner.aPos() + 1,
+		            nil))
+	p.scanner.next()
+	return nil
+}
+
+func (p realParser) parse() (cst.Node, *map[int]string, error) {
+
+	p.opStack.Push(opEOS())
+	p.opStack.Push(OpNonTerminal(0))
+
+	for p.opStack.Len() > 0 {
+		// fmt.Println(opStack.stack, fmt.Sprintf("`%c`", in.Peek()))
+
+		op, _ := p.opStack.Pop()
+
+		// fmt.Println( (*op).ParserOpType() )
+
+		switch (*op).parserOpType() {
+		case opTypeNonTerminal: {
+			nt, ok := (*op).(nonTerminal_t)
+			if !ok {
+				panic("can't cast nonTerminal op to it's type")
+			}
+
+			err := p.processNonTerminal(nt)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+		case opTypeTerminal: {
+			t, ok := (*op).(terminal_t)
+			if !ok {
+				panic("can't cast terminal op to it's type")
+			}
+
+			p.processTerminal(t)
+		}
+		case opTypeFunction: {
+			f, ok := (*op).(function_t)
+			if !ok {
+				panic("can't cast opTypeFunction op to it's type")
+			}
+
+			p.processFunction(f)
+		}
+		case opTypeEOS: {
+			return p.processEOS()
+		}
+		case opTypeChar: {
+			c, ok := (*op).(opChar_t)
+			if !ok {
+				panic("can't cast char op to it's type")
+			}
+
+			err := p.processChar(c)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+		default: {
+			panic(fmt.Sprint("unknown terminal type:", (*op).parserOpType()))
+		}}
+
+	}
+
+	panic("unreachable")
+}
+
+func readSource(src any) ([]byte, error) {
+	if src == nil {
+		return nil, fmt.Errorf("empty source")
+	}
+	switch s := src.(type) {
+	case string:
+		return []byte(s), nil
+	case []byte:
+		return s, nil
+	case *bytes.Buffer:
+		// is io.Reader, but src is already available in []byte form
+		if s != nil {
+			return s.Bytes(), nil
+		}
+	case io.Reader:
+		return io.ReadAll(s)
+	}
+	return nil, fmt.Errorf("invalid source")
+}
+
+func (p ll1parser_t) Parse(src any) (cst.Node, *map[int]string, error) {
 
 	if len(p.table) == 0 {
 		return nil, nil, fmt.Errorf("empty parsing table")
@@ -191,175 +485,18 @@ func (p ll1parser_t) Parse(in parserinterfaces.LL1ParserReader) (cst.Node, *map[
 			fmt.Errorf("can't start parsing: no rule for base entry point - 0")
 	}
 
-	charCode := func (char byte) string {
-		return fmt.Sprintf("'%c' (%d)", char, char)
+	text, err := readSource(src)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	nodeTypeName := func (name_id int) string {
-		val, ok := p.names[name_id]
-		if !ok {
-			return fmt.Sprintf("Unknown_%d", name_id)
-		}
-		return val
+	var rp realParser
+	rp.table = p.table
+	rp.names = p.names
+	rp.scanner = ll1parserScanner{
+		src: text,
+		offset: 0,
 	}
 
-	var opStack ll1parserOpStack
-	var prodStack ll1parserProdStack
-
-	opStack.Push(opEOS_t{})
-	opStack.Push(nonTerminal_t{name: 0})
-
-
-	for opStack.Len() > 0 {
-		// fmt.Println(opStack.stack, fmt.Sprintf("`%c`", in.Peek()))
-
-		op, _ := opStack.Pop()
-
-		// fmt.Println( (*op).ParserOpType() )
-
-		switch (*op).parserOpType() {
-		case nonTerminal: {
-			nt, ok := (*op).(nonTerminal_t)
-			if !ok {
-				panic("can't cast nonTerminal op to it's type")
-			}
-
-			nodeType := nt.GetName()
-
-			if nodeType > -1 {
-				ruleMap, ok := p.table[nodeType]
-				if !ok {
-					// Table error
-					return nil, nil, fmt.Errorf("no rules for non terminal: %s",
-					                            nodeTypeName(nodeType))
-				}
-
-				opsToPush, ok := ruleMap[in.Peek()]
-				if !ok {
-					// Parsing error
-					return nil, nil,
-						fmt.Errorf("no rules for %s and non terminal op <%s>",
-						           charCode(in.Peek()),
-						           nodeTypeName(nodeType))
-				}
-
-				opStack.Push(function_t{Name: nodeType, Pos: in.Pos(), Amount: len(opsToPush)})
-
-				for i := len(opsToPush) - 1; i >= 0; i -- {
-					opStack.Push(opsToPush[i])
-				}
-			} else {
-				switch nodeType {
-				case -2:
-					input := in.Peek()
-
-					switch input {
-					case '\n':
-						opStack.Push(function_t{Name: nodeType, Pos: in.Pos(), Amount: 1})
-						opStack.Push(OpTerminal("\n"))
-					case '\r':
-						opStack.Push(function_t{Name: nodeType, Pos: in.Pos(), Amount: 2})
-						opStack.Push(OpTerminal("\n"))
-						opStack.Push(OpTerminal("\r"))
-					default:
-						// Parsing error
-						return nil, nil,
-						fmt.Errorf("no rules for %s and builtin terminal op <EOL>",
-						           charCode(in.Peek()))
-					}
-				default:
-					return nil, nil,
-						fmt.Errorf("unknown built in type: %d", nodeType)
-				}
-			}
-		}
-		case terminal: {
-			t, ok := (*op).(terminal_t)
-			if !ok {
-				panic("can't cast terminal op to it's type")
-			}
-
-			tValue := t.GetValue()
-
-			opStack.Push(function_t{Name: builtinTerminal, Pos: in.Pos(), Amount: len(tValue)})
-			for i := len(tValue) - 1; i >= 0; i -- {
-				opStack.Push(opChar_t{Value: tValue[i]})
-			}
-		}
-		case function: {
-			f, ok := (*op).(function_t)
-			if !ok {
-				panic("can't cast function op to it's type")
-			}
-
-			childs := []cst.Node{}
-
-			if f.Amount == 0 {
-				childs = append(childs, cst.NewNode(-3, in.Pos(), in.Pos(), nil))
-				prodStack.Push(cst.NewNode(f.Name, in.Pos(), in.Pos(), childs))
-				break
-			}
-
-			for i := 0; i < f.Amount; i++ {
-				node, ok := prodStack.Pop()
-				if !ok {
-					panic("trying to pop from empty stack")
-				}
-				if f.Name == builtinTerminal {
-					if node.Type() != builtinTerminal {
-						panic("Tring to combine chars of terminal from non chars type")
-					}
-				} else {
-					childs = append([]cst.Node{node}, childs...)
-				}
-			}
-			if f.Name == builtinEOL {
-				childs = []cst.Node{}
-			}
-			prodStack.Push(cst.NewNode(f.Name, f.GetPos(), in.Pos(), childs))
-		}
-		case opEOS: {
-			if in.Peek() != byte(0) {
-				// fmt.Println("expected end of input got: ", in.Peek())
-				// Parsing error Unexpected EOF
-				return nil, nil, fmt.Errorf("expected end of input got %s",
-				                            charCode(in.Peek()))
-			}
-			// fmt.Println("Parsed successfully")
-
-			n, ok := prodStack.Pop()
-			if !ok {
-				// Table error too
-				return nil, nil, fmt.Errorf("prod stack empty")
-			}
-
-
-			ret_names := p.names
-			ret_names[builtinTerminal] = "_literal"
-			ret_names[builtinEOL]      = "_endofline"
-			ret_names[builtinNothing]  = "_nothing"
-
-			return n, &ret_names, nil
-		}
-		case opChar: {
-			c, ok := (*op).(opChar_t)
-			if !ok {
-				panic("can't cast char op to it's type")
-			}
-
-			if c.GetValue() != in.Peek() {
-				// Parsing error
-				return nil, nil, fmt.Errorf("expected char %s, got %s", charCode(c.GetValue()), charCode(in.Peek()))
-			}
-
-			prodStack.Push(cst.NewNode(builtinTerminal, in.Pos(), in.Pos() + 1, nil))
-			in.Move()
-		}
-		default: {
-			panic(fmt.Sprint("unknown terminal type:", (*op).parserOpType()))
-		}}
-
-	}
-
-	panic("unreachable")
+	return rp.parse()
 }

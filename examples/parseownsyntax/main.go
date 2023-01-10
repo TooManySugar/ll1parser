@@ -12,7 +12,6 @@ import (
 	"bnf/tablegen"
 	"bnf/fromcst"
 	"parserimpl"
-	spm "stringpeekmover"
 )
 
 func isNonTerminalsEqual(a bnf.SymbolNonTerminal,
@@ -113,9 +112,7 @@ func main() {
 
 	parser := parserimpl.NewLL1Parser(*parserTable, *parserTableNames)
 
-	peekMover := spm.NewSimplePeekMover(bnfStr)
-
-	cst, _, err := parser.Parse(peekMover)
+	cst, _, err := parser.Parse(bnfStr)
 	if err != nil {
 		fmt.Fprintln(os.Stderr,
 		             "ERROR: can't parse input:", err.Error())

@@ -7,7 +7,6 @@ replace (
 	bnf/tablegen => ./../../pkg/bnf/tablegen
 	cst => ./../../pkg/cst
 	parserimpl => ./../../pkg/parserimpl
-	parserinterfaces => ./../../pkg/parserinterfaces
 	stringpeekmover => ./../../pkg/stringpeekmover
 	testcommon => ./../testcommon
 	testgrammars => ./../testgrammars
@@ -22,5 +21,3 @@ require (
 	testcommon v0.0.0-00010101000000-000000000000
 	testgrammars v0.0.0-00010101000000-000000000000
 )
-
-require parserinterfaces v0.0.0-00010101000000-000000000000

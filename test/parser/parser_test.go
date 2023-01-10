@@ -8,12 +8,9 @@ import (
 	"runtime"
 	"strings"
 
-	"cst"
 	"bnf"
 	"bnf/tablegen"
-	"parserinterfaces"
 	"parserimpl"
-	spm "stringpeekmover"
 	tc "testcommon"
 	tg "testgrammars"
 )
@@ -51,9 +48,9 @@ func TestCustomParserCanParse(t *testing.T) {
 
 	parser := parserimpl.NewLL1Parser(table, map[int]string{})
 
-	pm := spm.NewSimplePeekMover("\"B^\n")
+	src := "\"B^\n"
 
-	_, _, err := parser.Parse(pm)
+	_, _, err := parser.Parse(src)
 	if err != nil {
 		t.Errorf("Failed to parse input: %s", err.Error())
 		t.Fail()
@@ -72,18 +69,10 @@ type ParserTestCase struct {
 	output ParserTestCaseOutput
 }
 
-func parserParseString(parser parserinterfaces.LL1Parser,
-                       in string) (parseTree cst.Node,
-                                   namingMap *map[int]string,
-                                   err error) {
-	pm := spm.NewSimplePeekMover(in)
-	return parser.Parse(pm)
-}
-
 const refFormat = "%v"
 
 func updateTestsOnParser(t *testing.T,
-	parser parserinterfaces.LL1Parser,
+	parser parserimpl.LL1Parser,
 	tests []ParserTestCase) {
 	for i, test := range tests {
 		if test.output.err != nil {
@@ -108,7 +97,7 @@ func updateTestsOnParser(t *testing.T,
 		}
 		defer refnt.Close()
 
-		rest, resnt, reserr := parserParseString(parser, test.input)
+		rest, resnt, reserr := parser.Parse(test.input)
 		if reserr != nil {
 			t.Errorf("TEST %d: Expected error %v got error %v", i, test.output.err, reserr)
 			t.Fail()
@@ -121,7 +110,7 @@ func updateTestsOnParser(t *testing.T,
 }
 
 func performTestsOnParser(t *testing.T,
-                          parser parserinterfaces.LL1Parser,
+                          parser parserimpl.LL1Parser,
                           tests []ParserTestCase) {
 	for i, test := range tests {
 
@@ -148,7 +137,7 @@ func performTestsOnParser(t *testing.T,
 
 
 
-		rest, resnt, reserr := parserParseString(parser, test.input)
+		rest, resnt, reserr := parser.Parse(test.input)
 		errorMismatchError := func() {
 			t.Errorf("TEST %d: Expected error %v got error %v", i, test.output.err, reserr)
 		}
@@ -337,11 +326,10 @@ func TestBNFParserCanParse1(t *testing.T) {
 
 	parser := parserimpl.NewLL1Parser(*table, *tableNames)
 
-	pm1 := spm.NewSimplePeekMover(
-		" <A-2-B> ::= \"A000123\" \"B\" | \"B\"| \"A\" |\"A\"|\"A\"   \n" +
-		" <A2-B-2-B>::= <B> ",)
+	src := " <A-2-B> ::= \"A000123\" \"B\" | \"B\"| \"A\" |\"A\"|\"A\"   \n" +
+	       " <A2-B-2-B>::= <B> "
 
-	_, _, err := parser.Parse(pm1)
+	_, _, err := parser.Parse(src)
 	if err != nil {
 		t.Errorf("Failed to parse input: %s", err.Error())
 		t.Fail()
@@ -377,11 +365,10 @@ func TestParserParseNamingMap(t *testing.T) {
 
 	parser := parserimpl.NewLL1Parser(*table, *tableNames)
 
-	pm1 := spm.NewSimplePeekMover(
-		" <A-2-B> ::= \"A000123\" \"B\" | \"B\"| \"A\" |\"A\"|\"A\"   \n" +
-		" <A2-B-2-B>::= <B> ",)
+	src := " <A-2-B> ::= \"A000123\" \"B\" | \"B\"| \"A\" |\"A\"|\"A\"   \n" +
+	       " <A2-B-2-B>::= <B> "
 
-	_, res, err := parser.Parse(pm1)
+	_, res, err := parser.Parse(src)
 	if err != nil {
 		t.Errorf("Failed to parse input")
 		t.Fail()
