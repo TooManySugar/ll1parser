@@ -1,0 +1,22 @@
+{
+    "source_link": "https://cs.opensource.google/go/go/+/refs/tags/go1.19.5:src/encoding/json/fuzz_test.go;drc=4fa6e33f30365a8bca374ab8bd47acd82b9faa96;l=15",
+    "object": {
+        "slice": [
+            1,
+            2.005,
+            "3",
+            [
+                -4
+            ],
+            {
+                "5": {}
+            }
+        ]
+    },
+    "slice": [
+        []
+    ],
+    "string": ":)",
+    "int": 100000,
+    "float": 3e-9
+}
