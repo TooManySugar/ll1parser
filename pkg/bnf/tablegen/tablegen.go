@@ -237,7 +237,11 @@ func followsForRuleInSequence(g bnf.Grammar,
 
 			ntRuleNum, ok := nonTerminalsMap[nt.Name]
 			if !ok {
-				panic(fmt.Sprint("no rules defined for terminal ", nt.Name))
+				if nt.Name == "EOL" {
+					ntRuleNum = -2
+				} else {
+					panic(fmt.Sprint("no rules defined for terminal ", nt.Name))
+				}
 			}
 
 			if ntRuleNum == ruleNum {
