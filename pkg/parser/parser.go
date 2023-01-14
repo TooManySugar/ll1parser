@@ -292,11 +292,10 @@ func (p *realParser) processBuiltinNonTerminal(name int) error {
 
 func (p *realParser) processNonTerminal(nt nonTerminal_t) error {
 	name := nt.Name()
-	if name >= 0 {
-		return p.processTableNonTerminal(name)
-	} else {
+	if name < 0 {
 		return p.processBuiltinNonTerminal(name)
 	}
+	return p.processTableNonTerminal(name)
 }
 
 func (p *realParser) processTerminal(t terminal_t) {

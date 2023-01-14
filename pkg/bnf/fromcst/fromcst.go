@@ -120,11 +120,12 @@ func (b BNFCSTtoASTBindings) parseSymbol(symbol cst.Node, str string) (*bnf.Symb
 	searchComplete := errors.New("headSearchComplete")
 
 	doOnTerminalName := func(termNameNode cst.Node) error {
-		if name := nodeName(termNameNode, str); len(name) == 0 {
+		name := nodeName(termNameNode, str);
+		if len(name) == 0 {
 			res = bnf.SymbolNothing{}
-		} else {
-			res = bnf.SymbolTerminal{Name: name}
+			return searchComplete
 		}
+		res = bnf.SymbolTerminal{Name: name}
 		return searchComplete
 	}
 
