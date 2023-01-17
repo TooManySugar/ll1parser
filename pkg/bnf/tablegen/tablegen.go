@@ -1,9 +1,9 @@
-// Parser Table constuctor from BNF's AST
 package tablegen
 
 import (
-	"fmt"
 	"bnf"
+	"errors"
+	"fmt"
 	"parser"
 )
 
@@ -17,6 +17,9 @@ func collectRuleHeads(g bnf.Grammar) []string {
 	return res
 }
 
+// enumerate
+// creates maping from string slice:
+// arr[i] <=> arr[slice[i]] = i
 func enumerate(arr []string) map[string]int {
 	res := map[string]int{}
 	for i := range arr {
@@ -25,464 +28,467 @@ func enumerate(arr []string) map[string]int {
 	return res
 }
 
-func firstsForTerminal(t bnf.SymbolTerminal) byteSet {
+func terminalFirsts(t bnf.SymbolTerminal) byteSet {
 	return newByteSet(t.Name[0])
 }
 
-func firstsForSymbol(firsts *map[int]byteSet,
-									nonTerminalsMap map[string]int,
-									symbol *bnf.Symbol) byteSet {
-	symbolType := (*symbol).Type()
-
-	if symbolType == bnf.TypeTerminal {
-
-		t, ok := (*symbol).(bnf.SymbolTerminal)
-		if !ok {
-			panic("can't cast terminal to it's native type")
-		}
-
-		return firstsForTerminal(t)
-	} else if symbolType == bnf.TypeNonTerminal {
-		nt, ok := (*symbol).(bnf.SymbolNonTerminal)
-		if !ok {
-			panic("can't cast non terminal to it's native type")
-		}
-
-		ntRuleNum, ok := nonTerminalsMap[nt.Name]
-		if !ok {
-			panic(fmt.Sprint("no rules defined for terminal ", nt.Name))
-		}
-
-		return (*firsts)[ntRuleNum]
-	} else if symbolType == bnf.TypeNothing {
-
-		res := newByteSet(EOS)
-
-		return res
-	}
-
-	panic(fmt.Sprint("unknown symbol type: ", symbolType))
+type tableGenerator struct {
+	g         bnf.Grammar
+	ruleCount int
+	// rule name to it's index in grammar
+	ruleMap map[string]int
+	firsts  []byteSet
+	follows []byteSet
 }
 
-func firstsForSequence(g bnf.Grammar,
-                       firsts *map[int]byteSet,
-                       nonTerminalsMap map[string]int,
-                       reviewedRules *map[int]bool,
-                       sequence *bnf.Sequence) byteSet {
+func (tg *tableGenerator,
+) sequenceFirsts(sequence *bnf.Sequence) (byteSet, error) {
 	res := newByteSet()
-
-	isEmptyFound := true
-
+	isEmptyStrFound := true
 	for _, symbol := range (*sequence).Symbols {
-
-		symbol_type := symbol.Type()
-
-		if symbol_type == bnf.TypeTerminal {
-			t, ok := symbol.(bnf.SymbolTerminal)
-			if !ok {
-				panic("can't cast terminal to it's native type")
-			}
-			tRes := firstsForTerminal(t)
+		switch v := symbol.(type) {
+		case bnf.SymbolTerminal:
+			tRes := terminalFirsts(v)
 			// TODO SetsCombine
 			for _, k := range tRes.ToSlice() {
 				res.Add(k)
 			}
-			return res
-		} else if symbol_type == bnf.TypeNothing {
+			return res, nil
+
+		case bnf.SymbolNothing:
 			if len((*sequence).Symbols) > 1 {
-				panic("empty string not a single sequence symbol")
+				return res, errors.New(
+					"empty string is not a single sequence symbol")
 			}
 			res.Add(EOS)
-			return res
-		} else if symbol_type == bnf.TypeNonTerminal {
-			// firsts rules 3
+			return res, nil
 
-
-			nt, ok := symbol.(bnf.SymbolNonTerminal)
+		case bnf.SymbolNonTerminal:
+			ruleIndex, ok := tg.ruleMap[v.Name]
 			if !ok {
-				panic("can't cast terminal to it's native type")
-			}
-
-			ntRuleNum, ok := nonTerminalsMap[nt.Name]
-			if !ok {
-				if nt.Name == "EOL" {
+				switch v.Name {
+				case "EOL":
 					res.Add('\r')
 					res.Add('\n')
-					return res
-				} else {
-					panic(fmt.Sprintf("no rules defined for non terminal <%s>", nt.Name))
+					return res, nil
+
+				default:
+					return res,
+						fmt.Errorf("no rules defined for non terminal <%s>",
+							v.Name)
+
 				}
 			}
 
-			// Check if self refering check other substitutuion without self refering
-			if _, ok := (*reviewedRules)[ntRuleNum]; ok {
-				panic("left recursive expression")
-				// res[EOS] = true
-				// return res
-			}
+			// TODO: left recursion check
 
-
-			reviewedRulesCopy := map[int]bool{}
-			for k := range (*reviewedRules) {
-				reviewedRulesCopy[k] = true
-			}
-			reviewedRulesCopy[ntRuleNum] = true
-
-			firstsForRule := firstsForSubstitutuion(g, firsts,  nonTerminalsMap, &reviewedRulesCopy, &g.Rules[ntRuleNum].Tail)
-
-
-			// fmt.Println("firstsForRule", firstsForRule)
-
-			isEmptyFound = false
-			for _, k := range firstsForRule.ToSlice() {
+			ruleFirsts := tg.firsts[ruleIndex]
+			isEmptyStrFound = false
+			for _, k := range ruleFirsts.ToSlice() {
 				if k == EOS {
-					isEmptyFound = true
+					isEmptyStrFound = true
 					continue
 				}
 				res.Add(k)
 			}
 
-			if !isEmptyFound {
-				return res
+			if !isEmptyStrFound {
+				return res, nil
 			}
 
 			continue
-		}
 
-		fmt.Println("Must not reach here on test run")
-		panic("")
+		default:
+			panic(fmt.Sprintf("symbol of unknown type %T", v))
+		}
 	}
 
-	if isEmptyFound {
+	if isEmptyStrFound {
 		res.Add(EOS)
 	}
 
-	return res
+	return res, nil
 }
 
-
-func firstsForSubstitutuion(g bnf.Grammar,
-                            firsts *map[int]byteSet,
-                            nonTerminalsMap map[string]int,
-                            reviewedRules *map[int]bool,
-                            substitution *bnf.Substitution) byteSet {
-	// substitution
+func (tg *tableGenerator,
+) substitutuionFirsts(substitution *bnf.Substitution) (byteSet, error) {
 	res := newByteSet()
 	for _, sequence := range (*substitution).Sequences {
-		tRes := firstsForSequence(g, firsts, nonTerminalsMap, reviewedRules, &sequence)
+		seqFirsts, err := tg.sequenceFirsts(&sequence)
+		if err != nil {
+			return res, err
+		}
 
-		// TODO Merge Sets
-		for _, k := range tRes.ToSlice() {
+		for _, k := range seqFirsts.ToSlice() {
 			res.Add(k)
 		}
 	}
 
-	return res
+	return res, nil
 }
 
-func firstsForRule(g bnf.Grammar,
-                   firsts *map[int]byteSet,
-                   nonTerminalsMap map[string]int,
-                   ruleNum int) byteSet {
-
-	if v, ok := (*firsts)[ruleNum]; ok {
-		return v
+func (tg *tableGenerator) ruleFirsts(ruleIndex int,
+	firstsChanged *bool) error {
+	if ruleIndex >= tg.ruleCount {
+		return errors.New("ruleIndex exceeding grammar rules")
 	}
 
-	if ruleNum >= len(g.Rules) {
-		panic("ruleNum exceeding grammar rules")
+	tempRes, err := tg.substitutuionFirsts(&tg.g.Rules[ruleIndex].Tail)
+	if err != nil {
+		return err
 	}
 
-	// Must itterate through productions and then sequence
-	reviewedRules := map[int]bool{}
-	reviewedRules[ruleNum] = true
-	(*firsts)[ruleNum] = firstsForSubstitutuion(g, firsts,  nonTerminalsMap, &reviewedRules, &g.Rules[ruleNum].Tail)
-	return (*firsts)[ruleNum]
+	// add byteSet tempRes to byteSet firsts[ruleIndex]
+	// if tempRes contains new value set *firtsChanged to true
+	for _, k := range tempRes.ToSlice() {
+		if tg.firsts[ruleIndex].Contains(k) {
+			continue
+		}
+		*firstsChanged = true
+		tg.firsts[ruleIndex].Add(k)
+	}
+	return nil
 }
 
-func calcFirsts(g bnf.Grammar,
-                nonTermNameToRuleIndex map[string]int) map[int]byteSet {
-
-	firsts := map[int]byteSet{}
-
-	for i := range g.Rules {
-		firstsForRule(g, &firsts, nonTermNameToRuleIndex, i)
+func (tg *tableGenerator) findFirsts() error {
+	var err error
+	firstsChanged := true
+	for firstsChanged {
+		firstsChanged = false
+		for ruleIndex := range tg.g.Rules {
+			err = tg.ruleFirsts(ruleIndex, &firstsChanged)
+			if err != nil {
+				return err
+			}
+		}
 	}
-
-	return firsts
+	return nil
 }
 
-func followsForRuleInSequence(g bnf.Grammar,
-                              firsts map[int]byteSet,
-                              follows *map[int]byteSet,
-                              nonTerminalsMap map[string]int,
-                              ruleNum int,
-                              sequence *bnf.Sequence,
-                              sequenceRuleNum int) {
+// symbolFirsts
+// Helper function to get firsts for symbol assuming
+// firsts sets already calculated
+func (tg *tableGenerator) symbolFirsts(symbol *bnf.Symbol) (byteSet, error) {
+	var ret byteSet
+	switch v := (*symbol).(type) {
+	case bnf.SymbolTerminal:
+		if len(v.Name) == 0 {
+			return ret, fmt.Errorf("terminal with empty string check grammar")
+		}
+		return terminalFirsts(v), nil
+
+	case bnf.SymbolNothing:
+		return newByteSet(EOS), nil
+
+	case bnf.SymbolNonTerminal:
+		ruleIndex, ok := tg.ruleMap[v.Name]
+		if !ok {
+			switch v.Name {
+			case "EOL":
+				return newByteSet('\n', '\r'), nil
+			default:
+				return ret,
+					fmt.Errorf("no rules defined for non terminal <%s>", v.Name)
+			}
+		}
+		return tg.firsts[ruleIndex], nil
+
+	default:
+		return ret, fmt.Errorf("symbol of unknown type: %T", v)
+	}
+}
+
+func (tg *tableGenerator,
+) ruleFollowsInSequence(
+	ruleIndex int,
+	sequence *bnf.Sequence,
+	sequenceRuleIndex int,
+	followsChanged *bool) error {
 
 	symbolsLen := len((*sequence).Symbols)
 	if symbolsLen == 0 {
-		panic("empty sequenceses non allowed")
+		return fmt.Errorf("empty sequencese")
 	}
 
-	{
-		symbol := (*sequence).Symbols[symbolsLen - 1]
-		symbol_type := symbol.Type()
-		if symbol_type == bnf.TypeNonTerminal {
+	// Last symbol - special treatment
 
-			nt, ok := symbol.(bnf.SymbolNonTerminal)
-			if !ok {
-				panic("can't cast non terminal to it's native type")
-			}
+	// skip self repeating production in follows calculation
+	// same follow sets
+	for ruleIndex != sequenceRuleIndex {
+		symbol := (*sequence).Symbols[symbolsLen-1]
 
-			ntRuleNum, ok := nonTerminalsMap[nt.Name]
-			if !ok {
-				if nt.Name == "EOL" {
-					ntRuleNum = -2
-				} else {
-					panic(fmt.Sprint("no rules defined for terminal ", nt.Name))
-				}
-			}
-
-			if ntRuleNum == ruleNum {
-				if ruleNum == sequenceRuleNum {
-					// fmt.Println("self repeating production - skip in follows calculation - same follow sets")
-					return
-				}
-
-				if sequenceRuleNum > ruleNum {
-					// valid bnf. error
-					panic("can't determine follow set for subsequent rule")
-				}
-
-				// rule 3
-				// TODO Merge Sets
-				ruleFollows := (*follows)[sequenceRuleNum]
-				for _, k := range ruleFollows.ToSlice() {
-					(*follows)[ruleNum].Add(k)
-				}
-			}
+		v, ok := symbol.(bnf.SymbolNonTerminal)
+		if !ok {
+			break
 		}
+		// last symbol in the end of sequence is non-terminal
+
+		if v.Name != tg.g.Rules[ruleIndex].Head.Name {
+			break
+		}
+		// processed rule is in the end of this sequence:
+		//   add sequence's follows to rule's follows
+
+		// rule 3
+		// add last non terminal follows to follows[ruleIndex]
+		// if it's follows contains new value set *firtsChanged to true
+		ruleFollows := tg.follows[sequenceRuleIndex]
+		for _, k := range ruleFollows.ToSlice() {
+			if tg.follows[ruleIndex].Contains(k) {
+				continue
+			}
+			*followsChanged = true
+			tg.follows[ruleIndex].Add(k)
+		}
+		break
 	}
 
-
+	// iterate over rest of symbols searching for processed rule
 	for i := symbolsLen - 2; i >= 0; i-- {
 		symbol := (*sequence).Symbols[i]
-		symbol_type := symbol.Type()
-		if symbol_type == bnf.TypeTerminal {
+
+		v, ok := symbol.(bnf.SymbolNonTerminal)
+		if !ok {
 			continue
-		} else if symbol_type == bnf.TypeNonTerminal {
-			nt, ok := symbol.(bnf.SymbolNonTerminal)
-			if !ok {
-				panic("can't cast non terminal to it's native type")
-			}
+		}
 
-			ntRuleNum, ok := nonTerminalsMap[nt.Name]
-			if !ok {
-				if nt.Name == "EOL" {
-					ntRuleNum = -2
-				} else {
-					panic(fmt.Sprint("no rules defined for terminal ", nt.Name))
+		if v.Name != tg.g.Rules[ruleIndex].Head.Name {
+			continue
+		}
+
+		// rule 2
+		// get firsts for next symbol in sequance (can be itself)
+		nextFirsts, err := tg.symbolFirsts(&(*sequence).Symbols[i+1])
+		if err != nil {
+			return err
+		}
+
+		// rule 4
+		// if next symbol (q) 's firsts contain empty string (Є)
+		// add to target rule's follows it's firsts w/o empty
+		// and follow set for sequence's rule (A)
+		//
+		// { FIRST(q) – Є } U FOLLOW(A)
+		//
+		// skip self repeating production in follows calculation:
+		// same follow sets
+
+		// add sequence's rule follows to follows[ruleIndex]
+		// if it's follows contains new value set *firtsChanged to
+		// true
+		if nextFirsts.Contains(EOS) && ruleIndex != sequenceRuleIndex {
+			// TODO Merge Sets
+			ruleFollows := tg.follows[sequenceRuleIndex]
+			for _, j := range ruleFollows.ToSlice() {
+				if tg.follows[ruleIndex].Contains(j) {
+					continue
 				}
+				*followsChanged = true
+				tg.follows[ruleIndex].Add(j)
 			}
+		}
 
-			if ntRuleNum != ruleNum {
+		for _, k := range nextFirsts.ToSlice() {
+			if k == EOS {
 				continue
 			}
 
+			if tg.follows[ruleIndex].Contains(k) {
+				continue
+			}
+			*followsChanged = true
+			tg.follows[ruleIndex].Add(k)
+		}
+	}
 
-			// rule 2
-			nextFirsts := firstsForSymbol(&firsts, nonTerminalsMap, &(*sequence).Symbols[i+1])
-			for _, k := range nextFirsts.ToSlice() {
+	return nil
+}
 
-				if k == EOS {
-					// rule 4
-					if sequenceRuleNum > ruleNum {
-						// valid bnf. error
-						panic("can't determine follow set for subsequent rule")
-					}
+func (tg *tableGenerator) ruleFollowsInRule(ruleIndex int,
+	againstRuleIndex int,
+	followsChanged *bool) error {
+	var err error
+	if ruleIndex >= tg.ruleCount {
+		return fmt.Errorf("ruleNum exceeding grammar rules")
+	}
 
-					// { FIRST(q) – Є } U FOLLOW(A)
-					if ruleNum == sequenceRuleNum {
-						// fmt.Println("self repeating production - skip in follows calculation - same follow sets")
-						continue
-					}
+	if againstRuleIndex >= tg.ruleCount {
+		return fmt.Errorf("targetRuleNum exceeding grammar rules")
+	}
 
-					// TODO Merge Sets
-					ruleFollows := (*follows)[sequenceRuleNum]
-					for _, j := range ruleFollows.ToSlice() {
-						(*follows)[ruleNum].Add(j)
-					}
+	for _, sequence := range tg.g.Rules[againstRuleIndex].Tail.Sequences {
+		err = tg.ruleFollowsInSequence(ruleIndex, &sequence,
+			againstRuleIndex, followsChanged)
+		if err != nil {
+			return err
+		}
+	}
 
-					continue
+	return nil
+}
+
+func (tg *tableGenerator) findFollows() error {
+	// rule 1
+	// Assuming starting rule is allways at index 0
+	tg.follows[0].Add(EOS)
+	followsChanged := true
+	var err error
+	for followsChanged {
+		followsChanged = false
+		for ruleIndex := range tg.g.Rules {
+			for againstRuleIndex := range tg.g.Rules {
+				err = tg.ruleFollowsInRule(ruleIndex, againstRuleIndex,
+					&followsChanged)
+				if err != nil {
+					return err
 				}
-
-				(*follows)[ruleNum].Add(k)
 			}
 		}
 	}
+	return nil
 }
 
-func followsForRuleinRule(g bnf.Grammar,
-                          firsts map[int]byteSet,
-                          follows *map[int]byteSet,
-                          ruleNum int,
-                          nonTerminalsMap map[string]int,
-                          targetRuleNum int) {
+func (tg *tableGenerator,
+) makeTableRow(ruleIndex int) (map[byte][]parser.ParserOp, error) {
+	rule := tg.g.Rules[ruleIndex]
 
-	if ruleNum >= len(g.Rules) {
-		panic("ruleNum exceeding grammar rules")
-	}
-
-	if targetRuleNum >= len(g.Rules) {
-		panic("targetRuleNum exceeding grammar rules")
-	}
-
-	for _, sequence := range g.Rules[targetRuleNum].Tail.Sequences {
-		followsForRuleInSequence(g, firsts, follows, nonTerminalsMap, ruleNum, &sequence, targetRuleNum)
-	}
-
-	return
-}
-
-func calcFollows(g bnf.Grammar,
-                 firsts map[int]byteSet,
-                 nonTermNameToRuleIndex map[string]int) map[int]byteSet {
-
-	follows := map[int]byteSet{}
-	for i := range g.Rules {
-		follows[i] = newByteSet()
-	}
-
-	// Assuming starting rule is allways at index 0
-	follows[0].Add(EOS)
-
-	for ruleIndex := range g.Rules {
-		// fmt.Println("follows for rule", g.Rules[ruleIndex].Head.Name)
-		for againstRuleIndex := range g.Rules {
-			followsForRuleinRule(g, firsts, &follows, ruleIndex, nonTermNameToRuleIndex, againstRuleIndex)
-		}
-	}
-
-	return follows
-}
-
-func calcTableRow(g bnf.Grammar,
-                  firsts *map[int]byteSet,
-                  follows *map[int]byteSet,
-                  nonTerminalsMap map[string]int,
-                  ruleIndex int) map[byte][]parser.ParserOp {
-	rule := g.Rules[ruleIndex]
-
-    res := map[byte][]parser.ParserOp{}
+	res := map[byte][]parser.ParserOp{}
 
 	for _, sequence := range rule.Tail.Sequences {
-
-		reviewedRules := map[int]bool{ruleIndex: true}
-		seqFirsts := firstsForSequence(g, firsts, nonTerminalsMap, &reviewedRules, &sequence)
+		seqFirsts, err := tg.sequenceFirsts(&sequence)
+		if err != nil {
+			return res, err
+		}
 
 		for _, term := range seqFirsts.ToSlice() {
 			if term == EOS {
-				seqFollows, ok := (*follows)[ruleIndex]
-				if !ok {
-					panic("follows not calculated yet")
-				}
-
-
+				// For each term in ruleFollows add empty []ParserOp
+				// if term in ruleFollow is Epsilon(TypeNothing)
+				//     add empty []ParserOp ?to EOS?
+				seqFollows := tg.follows[ruleIndex]
 
 				for _, followTerm := range seqFollows.ToSlice() {
-
 					if v, ok := res[byte(followTerm)]; ok {
 						fmt.Println(v)
-						panic("multiple")
+						return res,
+							fmt.Errorf("grammar lead to multiple parser op " +
+								"sets per table cell")
 					}
 					res[byte(followTerm)] = []parser.ParserOp{}
 				}
-				// panic("Epsilon can't go here yet")
-				// For each term in ruleFollows add empty []ParserOp
-				// if term in ruleFollow is Epsilon(TypeNothing) add empty []ParserOp ?to EOS?
 				continue
 			}
 
 			for _, symbol := range sequence.Symbols {
-				switch symbol.Type() {
-				case bnf.TypeTerminal: {
-					bTerm, ok := symbol.(bnf.SymbolTerminal)
-					if !ok {
-						panic("can't cast bnf.TypeTerminal symbol to it's native type")
-					}
+				switch v := symbol.(type) {
+				case bnf.SymbolTerminal:
+					res[byte(term)] = append(res[byte(term)],
+						parser.OpTerminal(v.Name))
 
-					res[byte(term)] = append(res[byte(term)], parser.OpTerminal(bTerm.Name))
-				}
-				case bnf.TypeNonTerminal: {
-					bNonTerm, ok := symbol.(bnf.SymbolNonTerminal)
+				case bnf.SymbolNonTerminal:
+					ruleIndex, ok := tg.ruleMap[v.Name]
 					if !ok {
-						panic("can't cast bnf.TypeNonTerminal symbol to it's native type")
-					}
+						switch v.Name {
+						case "EOL":
+							ruleIndex = parser.BuiltinEOL
 
-					ntIndex, ok := nonTerminalsMap[bNonTerm.Name]
-					if !ok {
-						if bNonTerm.Name == "EOL" {
-							ntIndex = parser.BuiltinEOL
-						} else {
-							panic("HERE")
+						default:
+							return res,
+								fmt.Errorf("no rules defined for non terminal "+
+									"<%s>", v.Name)
 						}
 					}
 
 					res[byte(term)] = append(res[byte(term)],
-						parser.OpNonTerminal(ntIndex))
-				}
-				case bnf.TypeNothing: {
-					if len(sequence.Symbols) > 1 {
-						panic("bnf. nothing type in sequence")
-					}
+						parser.OpNonTerminal(ruleIndex))
 
-					panic("A?")
-				}
+				case bnf.SymbolNothing:
+					// This must be uncreachable:
+					//
+					// Nothing can only be a single symbol in sequence
+					// This means sequance's firsts only contains a empty string
+					// so iteration would be only over one item (empty string)
+					// and it guarded off at if guard before reaching this loop
+					panic("uncreachable")
+
 				default:
-					panic(fmt.Sprint("unknown bnf. Symbol Type: ", symbol.Type()))
+					panic(fmt.Sprintf("symbol of unknown type %T", v))
 				}
 			}
 		}
 	}
 
-	return res
+	return res, nil
 }
 
-func calcTable(g bnf.Grammar,
-               firsts *map[int]byteSet,
-               follows *map[int]byteSet,
-               nonTerminalsMap map[string]int) map[int]map[byte][]parser.ParserOp {
-	res := map[int]map[byte][]parser.ParserOp{}
-	for ruleNum := range g.Rules {
-		res[ruleNum] = calcTableRow(g, firsts, follows, nonTerminalsMap, ruleNum)
+func (tg *tableGenerator,
+) makeTable() (table *map[int]map[byte][]parser.ParserOp,
+	err error) {
+	tableV := map[int]map[byte][]parser.ParserOp{}
+	for ruleIndex := range tg.g.Rules {
+		tableV[ruleIndex], err = tg.makeTableRow(ruleIndex)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return res
+	return &tableV, nil
 }
 
-func ToParserTable(g bnf.Grammar) (*map[int]map[byte][]parser.ParserOp, *map[int]string, bool) {
-
-	// TODO: condtional checks here
-
-	nonTerminals := collectRuleHeads(g)
-	nonTerminalsMap := enumerate(nonTerminals)
-
-	firsts := calcFirsts(g, nonTerminalsMap)
-	// for i := range g.Rules {
-	// 	fmt.Println("FIRSTS(<" + g.Rules[i].Head.Name + ">):", firsts[i])
-	// }
-
-	follows := calcFollows(g, firsts, nonTerminalsMap)
-	// for i := range g.Rules {
-	// 	fmt.Println("FOLLOWS(<" + g.Rules[i].Head.Name + ">):", follows[i])
-	// }
-
-	res := calcTable(g, &firsts, &follows, nonTerminalsMap)
-
-	namingMap := map[int]string{}
-	for k, v := range nonTerminalsMap {
-		namingMap[v] = k
+func (tg *tableGenerator) Run() (table *map[int]map[byte][]parser.ParserOp,
+	err error) {
+	err = tg.findFirsts()
+	if err != nil {
+		return nil, err
 	}
 
-	return &res, &namingMap, true
+	err = tg.findFollows()
+	if err != nil {
+		return nil, err
+	}
+
+	return tg.makeTable()
+}
+
+func FromGrammar(g bnf.Grammar) (table *map[int]map[byte][]parser.ParserOp,
+	rowNames *map[int]string,
+	err error) {
+
+	ruleHeads := collectRuleHeads(g)
+
+	var tablegen tableGenerator
+	// newTableGenerator
+	{
+		ruleHeads := collectRuleHeads(g)
+		ruleCount := len(ruleHeads)
+
+		firsts := make([]byteSet, ruleCount)
+		for i := 0; i < ruleCount; i++ {
+			firsts[i] = newByteSet()
+		}
+
+		follows := make([]byteSet, ruleCount)
+		for i := 0; i < ruleCount; i++ {
+			follows[i] = newByteSet()
+		}
+
+		tablegen = tableGenerator{
+			g:         g,
+			ruleCount: ruleCount,
+			ruleMap:   enumerate(ruleHeads),
+			firsts:    firsts,
+			follows:   follows,
+		}
+	}
+
+	table, err = tablegen.Run()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rowNamesV := make(map[int]string, len(ruleHeads))
+	for k, v := range tablegen.ruleMap {
+		rowNamesV[v] = k
+	}
+
+	return table, &rowNamesV, nil
 }

@@ -23,11 +23,9 @@ func TestLinearMultiRuleGrammarToParsingTableResTable(t *testing.T) {
 
 	grammar := tg.LinearMultiRule()
 
-	table, _, ok := tablegen.ToParserTable(grammar)
-	if !ok {
-		t.Errorf("Failed to parse grammar")
-		t.Fail()
-		return
+	table, _, err := tablegen.FromGrammar(grammar)
+	if err != nil {
+		t.Fatalf("Failed to parse grammar: %s", err.Error())
 	}
 
 	sb := bytes.Buffer{}
@@ -48,11 +46,9 @@ func TestOrGrammarToParsingTableResTable(t *testing.T) {
 
 	grammar := tg.Or()
 
-	table, _, ok := tablegen.ToParserTable(grammar)
-	if !ok {
-		t.Errorf("Failed to parse grammar")
-		t.Fail()
-		return
+	table, _, err := tablegen.FromGrammar(grammar)
+	if err != nil {
+		t.Fatalf("Failed to parse grammar: %s", err.Error())
 	}
 
 	sb := bytes.Buffer{}
@@ -64,8 +60,8 @@ func TestOrGrammarToParsingTableResTable(t *testing.T) {
 func TestLRecursiveGrammarToParsingTableResErr(t *testing.T) {
 	grammar := tg.LRecursive()
 
-	_, _, ok := tablegen.ToParserTable(grammar)
-	if ok {
+	_, _, err := tablegen.FromGrammar(grammar)
+	if err == nil {
 		fmt.Println("this must fail")
 		t.Fail()
 		return
@@ -84,11 +80,9 @@ func TestResolvedLRecursiveGrammarToParsingTableResTable(t *testing.T) {
 
 	grammar := tg.ResolvedLRecursive()
 
-	table, _, ok := tablegen.ToParserTable(grammar)
-	if !ok {
-		t.Errorf("Failed to parse grammar")
-		t.Fail()
-		return
+	table, _, err := tablegen.FromGrammar(grammar)
+	if err != nil {
+		t.Fatalf("Failed to parse grammar: %s", err.Error())
 	}
 
 	sb := bytes.Buffer{}
@@ -126,11 +120,9 @@ func TestBNFGrammarToParsingTableResNamingMap(t *testing.T) {
 
 	grammar := bnf.SelfGrammar()
 
-	_, res, ok := tablegen.ToParserTable(grammar)
-	if !ok {
-		t.Errorf("Failed to parse grammar")
-		t.Fail()
-		return
+	_, res, err := tablegen.FromGrammar(grammar)
+	if err != nil {
+		t.Fatalf("Failed to parse grammar: %s", err.Error())
 	}
 
 	tc.MapsIntStringMustBeEqual(t, ref, *res)
@@ -148,11 +140,9 @@ func TestBNFGrammarToParsingTableResTable(t *testing.T) {
 
 	grammar := bnf.SelfGrammar()
 
-	table, _, ok := tablegen.ToParserTable(grammar)
-	if !ok {
-		t.Errorf("Failed to parse grammar")
-		t.Fail()
-		return
+	table, _, err := tablegen.FromGrammar(grammar)
+	if err != nil {
+		t.Fatalf("Failed to parse grammar: %s", err.Error())
 	}
 
 	sb := bytes.Buffer{}

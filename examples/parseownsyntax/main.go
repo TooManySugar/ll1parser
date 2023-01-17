@@ -103,10 +103,11 @@ func main() {
 	reference := bnf.SelfGrammar()
 	bnfStr := reference.String()
 
-	parserTable, parserTableNames, ok := tablegen.ToParserTable(reference)
-	if !ok {
+	parserTable, parserTableNames, err := tablegen.FromGrammar(reference)
+	if err != nil {
 		fmt.Fprintln(os.Stderr,
-		             "ERROR: can't build Parser table from grammar")
+		             "ERROR: can't build Parser table from grammar:",
+		             err.Error())
 		os.Exit(1)
 	}
 

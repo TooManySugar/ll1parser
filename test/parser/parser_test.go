@@ -182,11 +182,9 @@ func TestLinearMultiRuleParserParse(t *testing.T) {
 
 	grammar := tg.LinearMultiRule()
 
-	table, tableNames, ok := tablegen.ToParserTable(grammar)
-	if !ok {
-		t.Errorf("Failed to parse grammar")
-		t.Fail()
-		return
+	table, tableNames, err := tablegen.FromGrammar(grammar)
+	if err != nil {
+		t.Fatal("Failed to parse grammar:", err.Error())
 	}
 
 	tests := []ParserTestCase{
@@ -237,11 +235,9 @@ func TestOrParserParse(t *testing.T) {
 
 	grammar := tg.Or()
 
-	table, tableNames, ok := tablegen.ToParserTable(grammar)
-	if !ok {
-		t.Errorf("Failed to parse grammar")
-		t.Fail()
-		return
+	table, tableNames, err := tablegen.FromGrammar(grammar)
+	if err != nil {
+		t.Fatal("Failed to parse grammar:", err.Error())
 	}
 
 	tests := []ParserTestCase{
@@ -273,11 +269,9 @@ func TestResolvedLRecursiveParserParse(t *testing.T) {
 
 	grammar := tg.ResolvedLRecursive()
 
-	table, tableNames, ok := tablegen.ToParserTable(grammar)
-	if !ok {
-		t.Errorf("Failed to parse grammar")
-		t.Fail()
-		return
+	table, tableNames, err := tablegen.FromGrammar(grammar)
+	if err != nil {
+		t.Fatal("Failed to parse grammar:", err.Error())
 	}
 
 	tests := []ParserTestCase{
@@ -317,11 +311,9 @@ func TestBNFParserCanParse1(t *testing.T) {
 
 	grammar := bnf.SelfGrammar()
 
-	table, tableNames, ok := tablegen.ToParserTable(grammar)
-	if !ok {
-		t.Errorf("Failed to parse grammar")
-		t.Fail()
-		return
+	table, tableNames, err := tablegen.FromGrammar(grammar)
+	if err != nil {
+		t.Fatal("Failed to parse grammar:", err.Error())
 	}
 
 	parser := parser.NewLL1Parser(*table, *tableNames)
@@ -329,7 +321,7 @@ func TestBNFParserCanParse1(t *testing.T) {
 	src := " <A-2-B> ::= \"A000123\" \"B\" | \"B\"| \"A\" |\"A\"|\"A\"   \n" +
 	       " <A2-B-2-B>::= <B> "
 
-	_, _, err := parser.Parse(src)
+	_, _, err = parser.Parse(src)
 	if err != nil {
 		t.Errorf("Failed to parse input: %s", err.Error())
 		t.Fail()
@@ -341,11 +333,9 @@ func TestParserParseNamingMap(t *testing.T) {
 
 	grammar := bnf.SelfGrammar()
 
-	table, tableNames, ok := tablegen.ToParserTable(grammar)
-	if !ok {
-		t.Errorf("Failed to parse grammar")
-		t.Fail()
-		return
+	table, tableNames, err := tablegen.FromGrammar(grammar)
+	if err != nil {
+		t.Fatal("Failed to parse grammar:", err.Error())
 	}
 
 	ref := make(map[int]string, len(*tableNames) + 3)
@@ -356,7 +346,7 @@ func TestParserParseNamingMap(t *testing.T) {
 
 	for k, v := range *tableNames {
 		if k < 0 {
-			t.Errorf("grammar.ToParserTable returned names with negative keys")
+			t.Errorf("grammar.FromGrammar returned names with negative keys")
 			t.Fail()
 			return
 		}

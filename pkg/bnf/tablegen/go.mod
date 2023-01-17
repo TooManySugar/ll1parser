@@ -4,7 +4,7 @@ go 1.17
 
 replace (
     bnf => ./../
-    parser => ./../pkg/parser
+    parser => ./../../parser
 )
 
 require (

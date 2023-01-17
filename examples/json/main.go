@@ -50,10 +50,10 @@ func main() {
 		fatalError("can't read JSON file: ", err.Error())
 	}
 
-	bnfParserTable, bnfParserTableNames, ok :=
-		tablegen.ToParserTable(bnf.SelfGrammar())
-	if !ok {
-		fatalError("can't build parser table from BNF grammar")
+	bnfParserTable, bnfParserTableNames, err :=
+		tablegen.FromGrammar(bnf.SelfGrammar())
+	if err != nil {
+		fatalError("can't build parser table from BNF grammar:", err.Error())
 	}
 
 	// Parser to parse JSON's BNF syntax
@@ -70,10 +70,10 @@ func main() {
 		fatalError("can't build JSON BNF AST from JSON BNF CST:", err.Error())
 	}
 
-	jsonParserTable, jsonParserTableNames, ok := tablegen.ToParserTable(
+	jsonParserTable, jsonParserTableNames, err := tablegen.FromGrammar(
 	                                                 *jsonGrammar)
-	if !ok {
-		fatalError("can't build parser table from JSON grammar")
+	if err != nil {
+		fatalError("can't build parser table from JSON grammar:", err.Error())
 	}
 	fmt.Println("Created table for JSON parser")
 
