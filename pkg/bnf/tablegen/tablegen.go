@@ -62,18 +62,8 @@ func (tg *tableGenerator,
 		case bnf.SymbolNonTerminal:
 			ruleIndex, ok := tg.ruleMap[v.Name]
 			if !ok {
-				switch v.Name {
-				case "EOL":
-					res.Add('\r')
-					res.Add('\n')
-					return res, nil
-
-				default:
-					return res,
-						fmt.Errorf("no rules defined for non terminal <%s>",
-							v.Name)
-
-				}
+				return res,
+					fmt.Errorf("no rules defined for non terminal <%s>", v.Name)
 			}
 
 			// TODO: left recursion check
@@ -170,13 +160,8 @@ func (tg *tableGenerator) symbolFirsts(symbol *bnf.Symbol) (bs.ByteSet, error) {
 	case bnf.SymbolNonTerminal:
 		ruleIndex, ok := tg.ruleMap[v.Name]
 		if !ok {
-			switch v.Name {
-			case "EOL":
-				return bs.New('\n', '\r'), nil
-			default:
-				return ret,
-					fmt.Errorf("no rules defined for non terminal <%s>", v.Name)
-			}
+			return ret,
+				fmt.Errorf("no rules defined for non terminal <%s>", v.Name)
 		}
 		return tg.firsts[ruleIndex], nil
 
@@ -369,15 +354,9 @@ func (tg *tableGenerator,
 				case bnf.SymbolNonTerminal:
 					ruleIndex, ok := tg.ruleMap[v.Name]
 					if !ok {
-						switch v.Name {
-						case "EOL":
-							ruleIndex = parser.BuiltinEOL
-
-						default:
-							return res,
-								fmt.Errorf("no rules defined for non terminal "+
-									"<%s>", v.Name)
-						}
+						return res,
+							fmt.Errorf("no rules defined for non terminal <%s>",
+								v.Name)
 					}
 
 					res[byte(term)] = append(res[byte(term)],

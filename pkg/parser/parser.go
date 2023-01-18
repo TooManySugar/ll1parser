@@ -20,15 +20,13 @@ const (
 // builin terminal types
 const (
 	//
-	builtinNothing int = iota-3
-	// for now builtin rule <EOL> ::= "\r\n" | "\n"
-	builtinEOL
+	builtinNothing int = iota-2
 	builtinTerminal
 )
 
 // make it expose to be readable from table generator(s)
 // but keep lowercase in enum for consistency within
-const BuiltinEOL = builtinEOL
+const BuiltinTerminal = builtinTerminal
 
 // Parser operands inheritance work around
 type ParserOp interface {
@@ -326,7 +324,7 @@ func (p *realParser) processFunction(f function_t) {
 
 	var childs []cst.Node
 
-	discard := (name == builtinTerminal || name == builtinEOL)
+	discard := (name == builtinTerminal)
 	if !discard {
 		childs = make([]cst.Node, amount)
 	}
@@ -367,7 +365,6 @@ func (p *realParser) processEOS() (cst.Node, *map[int]string, error) {
 
 	ret_names := p.names
 	ret_names[builtinTerminal] = "_literal"
-	ret_names[builtinEOL]      = "_endofline"
 	ret_names[builtinNothing]  = "_nothing"
 
 	return n, &ret_names, nil

@@ -1,11 +1,13 @@
 package fromcst
 
 import (
-	"fmt"
-	"sort"
-	"errors"
-	"cst"
 	"bnf"
+	"cst"
+	"parser"
+	"errors"
+	"fmt"
+	"strings"
+	"sort"
 )
 
 type flexVisitor struct {
@@ -86,7 +88,12 @@ type BNFCSTtoASTBindings struct {
 
 	SymbolNonTerminalType int
 
-	BuiltInLiteralType int
+	// Content of this type (single character striung) will be used to replace
+	// with corresponding value from EscapeMapping
+	EscapeCharacterType int
+
+	// Map character to it's corresponding value
+	EscapeMapping map[string]string
 }
 
 
@@ -114,13 +121,66 @@ func (b BNFCSTtoASTBindings) lrTraverse(root cst.Node,
 	return lrTraverse(root, isNodeIgnored, isSearchedType, f)
 }
 
+func (b BNFCSTtoASTBindings) parseEscape(escSeq cst.Node, str string) ([]byte, error) {
+	var res []byte
+	searchComplete := errors.New("headSearchComplete")
+	doOnEscapedChar := func(escChar cst.Node) error {
+		escStr := str[escChar.Pos():escChar.End()]
+		resStr, ok := b.EscapeMapping[escStr]
+		if !ok {
+			return fmt.Errorf("unkknown escape character: %s", escStr)
+		}
+		res = []byte(resStr)
+		return searchComplete
+	}
+
+	err := b.lrTraverse(escSeq, b.EscapeCharacterType, doOnEscapedChar)
+	if err == nil {
+		return nil, fmt.Errorf("not found escape character")
+	}
+	if err == searchComplete {
+		return res, nil
+	}
+	return nil, err
+}
+
+// manually construct terminal literal
+func (b BNFCSTtoASTBindings) parseTerminalName(symbol cst.Node, str string) (string, error) {
+	sb := strings.Builder{}
+
+	fOnNode := func(node cst.Node) error {
+		if node.Type() == parser.BuiltinTerminal {
+			sb.Write([]byte(str[node.Pos():node.End()]))
+			return nil
+		}
+
+		escape, err := b.parseEscape(node, str)
+		if err != nil {
+			return err
+		}
+		sb.Write(escape)
+		return nil
+	}
+
+	err := lrTraverse(
+		symbol,
+		func(int) bool {return false},
+		func(n int) bool {return n == 16 || n == parser.BuiltinTerminal},
+		fOnNode)
+
+	return sb.String(), err
+}
+
 func (b BNFCSTtoASTBindings) parseSymbol(symbol cst.Node, str string) (*bnf.Symbol, error) {
 	var res bnf.Symbol
 
 	searchComplete := errors.New("headSearchComplete")
 
 	doOnTerminalName := func(termNameNode cst.Node) error {
-		name := nodeName(termNameNode, str);
+		name, err := b.parseTerminalName(termNameNode, str);
+		if err != nil {
+			return err
+		}
 		if len(name) == 0 {
 			res = bnf.SymbolNothing{}
 			return searchComplete
@@ -131,8 +191,11 @@ func (b BNFCSTtoASTBindings) parseSymbol(symbol cst.Node, str string) (*bnf.Symb
 
 	for _, symbolTermType := range b.SymbolTerminalTypes {
 		err := b.lrTraverse(symbol, symbolTermType, doOnTerminalName)
-		if err != nil {
+		if err == searchComplete {
 			return &res, nil
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -265,12 +328,19 @@ func SelfCSTtoASTBindings() BNFCSTtoASTBindings {
 	return BNFCSTtoASTBindings{
 		IgnoreNodeTypes: []int{22},
 		RuleType: 4,
-		RuleHeadType: 16,
+		RuleHeadType: 18,
 		RuleTailType: 5,
 		ExpressionSequencesType: 7,
 		SequencesSymbolType: 9,
 		SymbolTerminalTypes: []int {11, 12},
-		SymbolNonTerminalType: 16,
-		BuiltInLiteralType: -1,
+		SymbolNonTerminalType: 18,
+		EscapeCharacterType: 17,
+		EscapeMapping: map[string]string{
+			 "t": "\t",
+			 "n": "\n",
+			 "r": "\r",
+			"\"": "\"",
+			"\\": "\\",
+		},
 	}
 }

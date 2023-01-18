@@ -29,7 +29,9 @@ package bnf
 //     <text2>           ::= "" | <character2> <text2>
 //     <character1>      ::= "'" | <character>
 //     <character2>      ::= '"' | <character>
-//     <character>       ::= <letter> | <digit> | <symbol>
+//     <character>       ::= <letter> | <digit> | <symbol> | <escape-sequence>
+//     <escape-sequence> ::= "\\" <escaped-char>
+//     <escaped-char>    ::= "t" | "n" | "r" | '"' | "\\"
 //     <rule-name>       ::= <letter> <rule-name-tail>
 //     <rule-name-tail>  ::= "" | <rule-char> <rule-name-tail>
 //     <rule-char>       ::= <letter> | <digit> | "-"
@@ -51,6 +53,7 @@ package bnf
 //                           "]" | "^" | "_" | "`" | "{" | "}" | "~"
 //
 //     <opt-whitespace>  ::= " " <opt-whitespace> | ""
+//     <EOL>             ::= "\n" | "\r\n"
 //
 func SelfGrammar() Grammar {
 	return Grammar{
@@ -467,10 +470,80 @@ func SelfGrammar() Grammar {
 							   },
 						   },
 					   },
+						{
+							Symbols: []Symbol{
+								SymbolNonTerminal{
+									Name: "escape-sequence",
+								},
+							},
+						},
 				   },
 			   },
 		   },
-		   { // 16 <rule-name>
+			{ // 16 <escape-sequence>
+				Head: SymbolNonTerminal{
+					Name: "escape-sequence",
+				},
+				Tail: Substitution{
+					Sequences: []Sequence{
+						{
+							Symbols: []Symbol{
+								SymbolTerminal{
+									Name: "\\",
+								},
+								SymbolNonTerminal{
+									Name: "escaped-char",
+								},
+							},
+						},
+					},
+				},
+			},
+			{ // 17 <escaped-char>
+				Head: SymbolNonTerminal{
+					Name: "escaped-char",
+				},
+				Tail: Substitution{
+					Sequences: []Sequence{
+						{
+							Symbols: []Symbol{
+								SymbolTerminal{
+									Name: "t", // ASCII 0x09 horizontal tab
+								},
+							},
+						},
+						{
+							Symbols: []Symbol{
+								SymbolTerminal{
+									Name: "n", // ASCII 0x0A new line
+								},
+							},
+						},
+						{
+							Symbols: []Symbol{
+								SymbolTerminal{
+									Name: "r", // ASCII 0x0D carriage return
+								},
+							},
+						},
+						{
+							Symbols: []Symbol{
+								SymbolTerminal{
+									Name: "\"", // ASCII 0x22 quotation mark
+								},
+							},
+						},
+						{
+							Symbols: []Symbol{
+								SymbolTerminal{
+									Name: "\\", // ASCII 0x5C reverse solidus
+								},
+							},
+						},
+					},
+				},
+			},
+		   { // 18 <rule-name>
 			   Head: SymbolNonTerminal{
 				   Name: "rule-name",
 			   },
@@ -489,7 +562,7 @@ func SelfGrammar() Grammar {
 				   },
 			   },
 		   },
-		   { // 17 <rule-name-tail>
+		   { // 19 <rule-name-tail>
 			   Head: SymbolNonTerminal{
 				   Name: "rule-name-tail",
 			   },
@@ -513,7 +586,7 @@ func SelfGrammar() Grammar {
 				   },
 			   },
 		   },
-		   { // 18 <rule-char>
+		   { // 20 <rule-char>
 			   Head: SymbolNonTerminal{
 				   Name: "rule-char",
 			   },
@@ -543,7 +616,7 @@ func SelfGrammar() Grammar {
 				   },
 			   },
 		   },
-		   { // 19 <letter>
+		   { // 21 <letter>
 			   Head: SymbolNonTerminal{
 				   Name: "letter",
 			   },
@@ -916,7 +989,7 @@ func SelfGrammar() Grammar {
 				   },
 			   },
 		   },
-		   { // 20 <digit>
+		   { // 22 <digit>
 			   Head: SymbolNonTerminal{
 				   Name: "digit",
 			   },
@@ -995,7 +1068,7 @@ func SelfGrammar() Grammar {
 				   },
 			   },
 		   },
-		   { // 21 <symbol>
+		   { // 23 <symbol>
 			   Head: SymbolNonTerminal{
 				   Name: "symbol",
 			   },
@@ -1165,13 +1238,6 @@ func SelfGrammar() Grammar {
 					   {
 						   Symbols: []Symbol{
 							   SymbolTerminal{
-								   Name: "\\",
-							   },
-						   },
-					   },
-					   {
-						   Symbols: []Symbol{
-							   SymbolTerminal{
 								   Name: "]",
 							   },
 						   },
@@ -1222,7 +1288,7 @@ func SelfGrammar() Grammar {
 				   },
 			   },
 		   },
-		   { // 22 <opt-whitespace>
+		   { // 24 <opt-whitespace>
 			   Head: SymbolNonTerminal{
 				   Name: "opt-whitespace",
 			   },
@@ -1246,6 +1312,29 @@ func SelfGrammar() Grammar {
 				   },
 			   },
 		   },
+			{ // 25 <EOL>
+				Head: SymbolNonTerminal{
+					Name: "EOL",
+				},
+				Tail: Substitution{
+					Sequences: []Sequence{
+						{
+							Symbols: []Symbol{
+								SymbolTerminal{
+									Name: "\n",
+								},
+							},
+						},
+						{
+							Symbols: []Symbol{
+								SymbolTerminal{
+									Name: "\r\n",
+								},
+							},
+						},
+					},
+				},
+			},
 	   },
    }
 }

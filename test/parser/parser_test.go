@@ -19,11 +19,13 @@ func TestCustomParserCanParse(t *testing.T) {
 
 	// <A> ::= '"' <T> "^" <EOL>
 	// <T> ::= "B" | "C"
+	// <EOL> ::= '\n'
 
 
-	//     "      B   C   ^
+	//     "      B   C   ^   \n
 	// <A> "T^EOL
 	// <T>        B   C
+	// <EOL>                  e
 
 	table :=  map[int]map[byte][]parser.ParserOp {
 		0: {
@@ -31,7 +33,7 @@ func TestCustomParserCanParse(t *testing.T) {
 				parser.OpTerminal("\""),
 				parser.OpNonTerminal(1),
 				parser.OpTerminal("^"),
-				parser.OpNonTerminal(parser.BuiltinEOL),
+				parser.OpNonTerminal(2),
 			},
 		},
 		1: {
@@ -40,6 +42,11 @@ func TestCustomParserCanParse(t *testing.T) {
 			},
 			'C': []parser.ParserOp{
 				parser.OpTerminal("C"),
+			},
+		},
+		2: {
+			'\n': []parser.ParserOp{
+				parser.OpTerminal("\n"),
 			},
 		},
 	}
@@ -341,8 +348,7 @@ func TestParserParseNamingMap(t *testing.T) {
 	ref := make(map[int]string, len(*tableNames) + 3)
 
 	ref[-1] = "_literal"
-	ref[-2] = "_endofline"
-	ref[-3] = "_nothing"
+	ref[-2] = "_nothing"
 
 	for k, v := range *tableNames {
 		if k < 0 {

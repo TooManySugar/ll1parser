@@ -109,13 +109,16 @@ func TestBNFGrammarToParsingTableResNamingMap(t *testing.T) {
 		13: "character1",
 		14: "character2",
 		15: "character",
-		16: "rule-name",
-		17: "rule-name-tail",
-		18: "rule-char",
-		19: "letter",
-		20: "digit",
-		21: "symbol",
-		22: "opt-whitespace",
+		16: "escape-sequence",
+		17: "escaped-char",
+		18: "rule-name",
+		19: "rule-name-tail",
+		20: "rule-char",
+		21: "letter",
+		22: "digit",
+		23: "symbol",
+		24: "opt-whitespace",
+		25: "EOL",
 	}
 
 	grammar := bnf.SelfGrammar()

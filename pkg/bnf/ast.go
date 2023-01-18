@@ -49,6 +49,8 @@ func (nt SymbolTerminal) Type() int {
 func (t SymbolTerminal) String() string {
 	sb := strings.Builder{}
 	res := t.Name
+	res = strings.ReplaceAll(res, "\\", "\\\\")
+	res = strings.ReplaceAll(res, "\t", "\\t")
 	res = strings.ReplaceAll(res, "\n", "\\n")
 	res = strings.ReplaceAll(res, "\r", "\\r")
 
@@ -61,8 +63,6 @@ func (t SymbolTerminal) String() string {
 
 	sb.WriteByte('"')
 
-	// Replaces none if AST generated from BNF rules
-	// but might happen so have to handle it
 	res = strings.ReplaceAll(res, "\"", "\\\"")
 	sb.WriteString(res)
 

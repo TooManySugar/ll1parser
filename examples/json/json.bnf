@@ -12,8 +12,8 @@
 <string> ::= '"' <text> '"'
 <text> ::= "" | <character> <text>
 <character> ::= <digit> | <letter> | <escape-sequence> | <symbol>
-<escape-sequence> ::= '\' <escape>
-<escape> ::= '"' | '\' | '/' | 'b' | 'f' | 'n' | 'r' | 't' | 'u' <hex> <hex> <hex>
+<escape-sequence> ::= '\\' <escape>
+<escape> ::= '"' | '\\' | '/' | 'b' | 'f' | 'n' | 'r' | 't' | 'u' <hex> <hex> <hex>
 <hex> ::= <digit> | "A" | "B" | "C" | "D" | "E" | "F" | "a" | "b" | "c" | "d" | "e" | "f"
 <number> ::= <integer> <fraction> <exponent>
 <integer> ::= <opt-minus> <unsigned-integer>
@@ -30,3 +30,4 @@
 <symbol> ::= "|" | " " | "!" | "#" | "$" | "%" | "&" | "(" | ")" | "*" | "+" | "," | "-" | "." | "/" | ":" | ";" | ">" | "=" | "<" | "?" | "@" | "[" | "]" | "^" | "_" | "`" | "{" | "}" | "~" | "'"
 <opt-whitespace> ::= "" | <space-symobls> <opt-whitespace>
 <space-symobls> ::= " " | <EOL>
+<EOL> ::= "\n" | "\r\n"
