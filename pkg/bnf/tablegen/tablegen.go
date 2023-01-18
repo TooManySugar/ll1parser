@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"parser"
+	bs "bnf/tablegen/byteset"
 )
 
 const EOS = byte(0)
@@ -28,8 +29,8 @@ func enumerate(arr []string) map[string]int {
 	return res
 }
 
-func terminalFirsts(t bnf.SymbolTerminal) byteSet {
-	return newByteSet(t.Name[0])
+func terminalFirsts(t bnf.SymbolTerminal) bs.ByteSet {
+	return bs.New(t.Name[0])
 }
 
 type tableGenerator struct {
@@ -37,20 +38,20 @@ type tableGenerator struct {
 	ruleCount int
 	// rule name to it's index in grammar
 	ruleMap map[string]int
-	firsts  []byteSet
-	follows []byteSet
+	firsts  []bs.ByteSet
+	follows []bs.ByteSet
 }
 
 func (tg *tableGenerator,
-) sequenceFirsts(sequence *bnf.Sequence) (byteSet, error) {
-	res := newByteSet()
+) sequenceFirsts(sequence *bnf.Sequence) (bs.ByteSet, error) {
+	res := bs.New()
 	isEmptyStrFound := true
 	for _, symbol := range (*sequence).Symbols {
 		switch v := symbol.(type) {
 		case bnf.SymbolTerminal:
 			tRes := terminalFirsts(v)
 			// TODO SetsCombine
-			for _, k := range tRes.ToSlice() {
+			for _, k := range tRes.Bytes() {
 				res.Add(k)
 			}
 			return res, nil
@@ -84,7 +85,7 @@ func (tg *tableGenerator,
 
 			ruleFirsts := tg.firsts[ruleIndex]
 			isEmptyStrFound = false
-			for _, k := range ruleFirsts.ToSlice() {
+			for _, k := range ruleFirsts.Bytes() {
 				if k == EOS {
 					isEmptyStrFound = true
 					continue
@@ -111,15 +112,15 @@ func (tg *tableGenerator,
 }
 
 func (tg *tableGenerator,
-) substitutuionFirsts(substitution *bnf.Substitution) (byteSet, error) {
-	res := newByteSet()
+) substitutuionFirsts(substitution *bnf.Substitution) (bs.ByteSet, error) {
+	res := bs.New()
 	for _, sequence := range (*substitution).Sequences {
 		seqFirsts, err := tg.sequenceFirsts(&sequence)
 		if err != nil {
 			return res, err
 		}
 
-		for _, k := range seqFirsts.ToSlice() {
+		for _, k := range seqFirsts.Bytes() {
 			res.Add(k)
 		}
 	}
@@ -140,7 +141,7 @@ func (tg *tableGenerator) ruleFirsts(ruleIndex int,
 
 	// add byteSet tempRes to byteSet firsts[ruleIndex]
 	// if tempRes contains new value set *firtsChanged to true
-	for _, k := range tempRes.ToSlice() {
+	for _, k := range tempRes.Bytes() {
 		if tg.firsts[ruleIndex].Contains(k) {
 			continue
 		}
@@ -168,8 +169,8 @@ func (tg *tableGenerator) findFirsts() error {
 // symbolFirsts
 // Helper function to get firsts for symbol assuming
 // firsts sets already calculated
-func (tg *tableGenerator) symbolFirsts(symbol *bnf.Symbol) (byteSet, error) {
-	var ret byteSet
+func (tg *tableGenerator) symbolFirsts(symbol *bnf.Symbol) (bs.ByteSet, error) {
+	var ret bs.ByteSet
 	switch v := (*symbol).(type) {
 	case bnf.SymbolTerminal:
 		if len(v.Name) == 0 {
@@ -178,14 +179,14 @@ func (tg *tableGenerator) symbolFirsts(symbol *bnf.Symbol) (byteSet, error) {
 		return terminalFirsts(v), nil
 
 	case bnf.SymbolNothing:
-		return newByteSet(EOS), nil
+		return bs.New(EOS), nil
 
 	case bnf.SymbolNonTerminal:
 		ruleIndex, ok := tg.ruleMap[v.Name]
 		if !ok {
 			switch v.Name {
 			case "EOL":
-				return newByteSet('\n', '\r'), nil
+				return bs.New('\n', '\r'), nil
 			default:
 				return ret,
 					fmt.Errorf("no rules defined for non terminal <%s>", v.Name)
@@ -233,7 +234,7 @@ func (tg *tableGenerator,
 		// add last non terminal follows to follows[ruleIndex]
 		// if it's follows contains new value set *firtsChanged to true
 		ruleFollows := tg.follows[sequenceRuleIndex]
-		for _, k := range ruleFollows.ToSlice() {
+		for _, k := range ruleFollows.Bytes() {
 			if tg.follows[ruleIndex].Contains(k) {
 				continue
 			}
@@ -279,7 +280,7 @@ func (tg *tableGenerator,
 		if nextFirsts.Contains(EOS) && ruleIndex != sequenceRuleIndex {
 			// TODO Merge Sets
 			ruleFollows := tg.follows[sequenceRuleIndex]
-			for _, j := range ruleFollows.ToSlice() {
+			for _, j := range ruleFollows.Bytes() {
 				if tg.follows[ruleIndex].Contains(j) {
 					continue
 				}
@@ -288,7 +289,7 @@ func (tg *tableGenerator,
 			}
 		}
 
-		for _, k := range nextFirsts.ToSlice() {
+		for _, k := range nextFirsts.Bytes() {
 			if k == EOS {
 				continue
 			}
@@ -360,14 +361,14 @@ func (tg *tableGenerator,
 			return res, err
 		}
 
-		for _, term := range seqFirsts.ToSlice() {
+		for _, term := range seqFirsts.Bytes() {
 			if term == EOS {
 				// For each term in ruleFollows add empty []ParserOp
 				// if term in ruleFollow is Epsilon(TypeNothing)
 				//     add empty []ParserOp ?to EOS?
 				seqFollows := tg.follows[ruleIndex]
 
-				for _, followTerm := range seqFollows.ToSlice() {
+				for _, followTerm := range seqFollows.Bytes() {
 					if v, ok := res[byte(followTerm)]; ok {
 						fmt.Println(v)
 						return res,
@@ -461,14 +462,14 @@ func FromGrammar(g bnf.Grammar) (table *map[int]map[byte][]parser.ParserOp,
 		ruleHeads := collectRuleHeads(g)
 		ruleCount := len(ruleHeads)
 
-		firsts := make([]byteSet, ruleCount)
+		firsts := make([]bs.ByteSet, ruleCount)
 		for i := 0; i < ruleCount; i++ {
-			firsts[i] = newByteSet()
+			firsts[i] = bs.New()
 		}
 
-		follows := make([]byteSet, ruleCount)
+		follows := make([]bs.ByteSet, ruleCount)
 		for i := 0; i < ruleCount; i++ {
-			follows[i] = newByteSet()
+			follows[i] = bs.New()
 		}
 
 		tablegen = tableGenerator{

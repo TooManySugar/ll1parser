@@ -1,0 +1,1 @@
+If you reading this and want to use this in your own project - direct message to hell out me to move it to separate repo.
