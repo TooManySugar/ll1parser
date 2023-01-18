@@ -17,11 +17,11 @@ import (
 	"fmt"
 	"os"
 
-	"bnf"
-	"bnf/fromcst"
-	"bnf/tablegen"
-	"cst"
-	"parser"
+	"github.com/TooManySugar/ll1parser/pkg/bnf"
+	"github.com/TooManySugar/ll1parser/pkg/bnf/fromcst"
+	"github.com/TooManySugar/ll1parser/pkg/bnf/tablegen"
+	"github.com/TooManySugar/ll1parser/pkg/cst"
+	"github.com/TooManySugar/ll1parser/pkg/parser"
 )
 
 const jsonBnfFileName = "json.bnf"

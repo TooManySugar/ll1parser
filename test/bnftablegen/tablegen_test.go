@@ -2,13 +2,14 @@ package bnftablegen
 
 import (
 	"testing"
-	"bnf"
-	"bnf/tablegen"
-	tc "testcommon"
-	tg "testgrammars"
 	"bytes"
 	"fmt"
 	"os"
+
+	"github.com/TooManySugar/ll1parser/pkg/bnf"
+	"github.com/TooManySugar/ll1parser/pkg/bnf/tablegen"
+	tc "github.com/TooManySugar/ll1parser/test/testcommon"
+	tg "github.com/TooManySugar/ll1parser/test/testgrammars"
 )
 
 func TestLinearMultiRuleGrammarToParsingTableResTable(t *testing.T) {

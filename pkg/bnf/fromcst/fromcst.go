@@ -1,13 +1,14 @@
 package fromcst
 
 import (
-	"bnf"
-	"cst"
 	"errors"
 	"fmt"
-	"parser"
 	"sort"
 	"strings"
+
+	"github.com/TooManySugar/ll1parser/pkg/bnf"
+	"github.com/TooManySugar/ll1parser/pkg/cst"
+	"github.com/TooManySugar/ll1parser/pkg/parser"
 )
 
 type flexVisitor struct {

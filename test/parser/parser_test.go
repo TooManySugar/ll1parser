@@ -8,11 +8,11 @@ import (
 	"runtime"
 	"strings"
 
-	"bnf"
-	"bnf/tablegen"
-	"parser"
-	tc "testcommon"
-	tg "testgrammars"
+	"github.com/TooManySugar/ll1parser/pkg/bnf"
+	"github.com/TooManySugar/ll1parser/pkg/bnf/tablegen"
+	"github.com/TooManySugar/ll1parser/pkg/parser"
+	tc "github.com/TooManySugar/ll1parser/test/testcommon"
+	tg "github.com/TooManySugar/ll1parser/test/testgrammars"
 )
 
 func TestCustomParserCanParse(t *testing.T) {

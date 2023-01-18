@@ -2,13 +2,14 @@ package cst_test
 
 import (
 	"testing"
-	"cst"
-	tc "testcommon"
 	"bytes"
 	"os"
 	"io"
 	"fmt"
 	"strings"
+
+	"github.com/TooManySugar/ll1parser/pkg/cst"
+	tc "github.com/TooManySugar/ll1parser/test/testcommon"
 )
 
 type namedVisitor struct {

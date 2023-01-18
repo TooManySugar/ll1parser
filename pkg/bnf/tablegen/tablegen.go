@@ -1,11 +1,12 @@
 package tablegen
 
 import (
-	"bnf"
 	"errors"
 	"fmt"
-	"parser"
-	bs "bnf/tablegen/byteset"
+
+	"github.com/TooManySugar/ll1parser/pkg/bnf"
+	bs "github.com/TooManySugar/ll1parser/pkg/bnf/tablegen/byteset"
+	"github.com/TooManySugar/ll1parser/pkg/parser"
 )
 
 const EOS = byte(0)

@@ -1,7 +1,7 @@
 package parser
 
 import (
-	"cst"
+	"github.com/TooManySugar/ll1parser/pkg/cst"
 )
 
 type LL1Parser interface {

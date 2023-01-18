@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"bytes"
 	"io"
-	"cst"
+
+	"github.com/TooManySugar/ll1parser/pkg/cst"
 )
 
 // Parser operands types

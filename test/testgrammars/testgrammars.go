@@ -2,7 +2,7 @@
 package testgrammars
 
 import (
-	"bnf"
+	"github.com/TooManySugar/ll1parser/pkg/bnf"
 )
 
 // <Expr> ::= "A" "::=" <T>
