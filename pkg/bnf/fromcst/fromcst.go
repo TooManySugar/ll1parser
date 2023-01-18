@@ -3,19 +3,18 @@ package fromcst
 import (
 	"bnf"
 	"cst"
-	"parser"
 	"errors"
 	"fmt"
-	"strings"
+	"parser"
 	"sort"
+	"strings"
 )
 
 type flexVisitor struct {
-	isTypeIgnored func(int) bool
+	isTypeIgnored  func(int) bool
 	isSearchedType func(int) bool
-	fOnNode func(cst.Node) error
-
-	err *error
+	fOnNode        func(cst.Node) error
+	err            *error
 }
 
 func (v flexVisitor) Visit(node cst.Node) (w cst.Visitor) {
@@ -96,7 +95,6 @@ type BNFCSTtoASTBindings struct {
 	EscapeMapping map[string]string
 }
 
-
 // Handiy wrapper around lrTraverse
 // When meets Node.type == untilType executes f
 // If f returned error immediately returns with f's error
@@ -110,7 +108,7 @@ func (b BNFCSTtoASTBindings) lrTraverse(root cst.Node,
 
 	isNodeIgnored := func(nodeType int) bool {
 		// Equivalent to sorted slice contains
-		sr := sort.SearchInts(b.IgnoreNodeTypes, nodeType);
+		sr := sort.SearchInts(b.IgnoreNodeTypes, nodeType)
 		return (sr < len(b.IgnoreNodeTypes) && b.IgnoreNodeTypes[sr] == nodeType)
 	}
 
@@ -164,8 +162,8 @@ func (b BNFCSTtoASTBindings) parseTerminalName(symbol cst.Node, str string) (str
 
 	err := lrTraverse(
 		symbol,
-		func(int) bool {return false},
-		func(n int) bool {return n == 16 || n == parser.BuiltinTerminal},
+		func(int) bool { return false },
+		func(n int) bool { return n == 16 || n == parser.BuiltinTerminal },
 		fOnNode)
 
 	return sb.String(), err
@@ -177,7 +175,7 @@ func (b BNFCSTtoASTBindings) parseSymbol(symbol cst.Node, str string) (*bnf.Symb
 	searchComplete := errors.New("headSearchComplete")
 
 	doOnTerminalName := func(termNameNode cst.Node) error {
-		name, err := b.parseTerminalName(termNameNode, str);
+		name, err := b.parseTerminalName(termNameNode, str)
 		if err != nil {
 			return err
 		}
@@ -326,21 +324,21 @@ func (b BNFCSTtoASTBindings) ToAST(root cst.Node, str string) (*bnf.Grammar, err
 
 func SelfCSTtoASTBindings() BNFCSTtoASTBindings {
 	return BNFCSTtoASTBindings{
-		IgnoreNodeTypes: []int{22},
-		RuleType: 4,
-		RuleHeadType: 18,
-		RuleTailType: 5,
+		IgnoreNodeTypes:         []int{25},
+		RuleType:                4,
+		RuleHeadType:            18,
+		RuleTailType:            5,
 		ExpressionSequencesType: 7,
-		SequencesSymbolType: 9,
-		SymbolTerminalTypes: []int {11, 12},
-		SymbolNonTerminalType: 18,
-		EscapeCharacterType: 17,
+		SequencesSymbolType:     9,
+		SymbolTerminalTypes:     []int{11, 12},
+		SymbolNonTerminalType:   18,
+		EscapeCharacterType:     17,
 		EscapeMapping: map[string]string{
-			 "t": "\t",
-			 "n": "\n",
-			 "r": "\r",
-			"\"": "\"",
-			"\\": "\\",
+			`t`: "\t",
+			`n`: "\n",
+			`r`: "\r",
+			`"`: `"`,
+			`\`: `\`,
 		},
 	}
 }
