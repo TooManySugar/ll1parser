@@ -152,6 +152,17 @@ func (s ByteSet) Equal(other ByteSet) bool {
 	       s.data[3] == other.data[3]
 }
 
+func (s ByteSet) IsSubSet(other ByteSet) bool {
+	return (s.data[0] & other.data[0]) == s.data[0] &&
+	       (s.data[1] & other.data[1]) == s.data[1] &&
+	       (s.data[2] & other.data[2]) == s.data[2] &&
+	       (s.data[3] & other.data[3]) == s.data[3]
+}
+
+func (s ByteSet) IsSuperSet(other ByteSet) bool {
+	return other.IsSubSet(s)
+}
+
 // fmt.Stringer implementation
 func (s ByteSet) String() string {
 	sb := bytes.Buffer{}

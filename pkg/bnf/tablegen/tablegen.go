@@ -49,12 +49,7 @@ func (tg *tableGenerator,
 	for _, symbol := range (*sequence).Symbols {
 		switch v := symbol.(type) {
 		case bnf.SymbolTerminal:
-			tRes := terminalFirsts(v)
-			// TODO SetsCombine
-			for _, k := range tRes.Bytes() {
-				res.Add(k)
-			}
-			return res, nil
+			return res.Union(terminalFirsts(v)), nil
 
 		case bnf.SymbolNothing:
 			if len((*sequence).Symbols) > 1 {
@@ -84,14 +79,9 @@ func (tg *tableGenerator,
 			// TODO: left recursion check
 
 			ruleFirsts := tg.firsts[ruleIndex]
-			isEmptyStrFound = false
-			for _, k := range ruleFirsts.Bytes() {
-				if k == EOS {
-					isEmptyStrFound = true
-					continue
-				}
-				res.Add(k)
-			}
+			isEmptyStrFound = ruleFirsts.Contains(EOS)
+			ruleFirsts.Remove(EOS)
+			res = res.Union(ruleFirsts)
 
 			if !isEmptyStrFound {
 				return res, nil
@@ -119,10 +109,7 @@ func (tg *tableGenerator,
 		if err != nil {
 			return res, err
 		}
-
-		for _, k := range seqFirsts.Bytes() {
-			res.Add(k)
-		}
+		res = res.Union(seqFirsts)
 	}
 
 	return res, nil
@@ -141,13 +128,12 @@ func (tg *tableGenerator) ruleFirsts(ruleIndex int,
 
 	// add byteSet tempRes to byteSet firsts[ruleIndex]
 	// if tempRes contains new value set *firtsChanged to true
-	for _, k := range tempRes.Bytes() {
-		if tg.firsts[ruleIndex].Contains(k) {
-			continue
-		}
-		*firstsChanged = true
-		tg.firsts[ruleIndex].Add(k)
+	if tg.firsts[ruleIndex].IsSuperSet(tempRes) {
+		// No new values
+		return nil
 	}
+	tg.firsts[ruleIndex] = tg.firsts[ruleIndex].Union(tempRes)
+	*firstsChanged = true
 	return nil
 }
 
@@ -234,14 +220,13 @@ func (tg *tableGenerator,
 		// add last non terminal follows to follows[ruleIndex]
 		// if it's follows contains new value set *firtsChanged to true
 		ruleFollows := tg.follows[sequenceRuleIndex]
-		for _, k := range ruleFollows.Bytes() {
-			if tg.follows[ruleIndex].Contains(k) {
-				continue
-			}
-			*followsChanged = true
-			tg.follows[ruleIndex].Add(k)
+		if tg.follows[ruleIndex].IsSuperSet(ruleFollows) {
+			// No new values
+			break
 		}
-		break
+		tg.follows[ruleIndex] = tg.follows[ruleIndex].Union(ruleFollows)
+		*followsChanged = true
+		return nil
 	}
 
 	// iterate over rest of symbols searching for processed rule
@@ -277,29 +262,23 @@ func (tg *tableGenerator,
 		// add sequence's rule follows to follows[ruleIndex]
 		// if it's follows contains new value set *firtsChanged to
 		// true
-		if nextFirsts.Contains(EOS) && ruleIndex != sequenceRuleIndex {
-			// TODO Merge Sets
+		for nextFirsts.Contains(EOS) && ruleIndex != sequenceRuleIndex {
 			ruleFollows := tg.follows[sequenceRuleIndex]
-			for _, j := range ruleFollows.Bytes() {
-				if tg.follows[ruleIndex].Contains(j) {
-					continue
-				}
-				*followsChanged = true
-				tg.follows[ruleIndex].Add(j)
+			if tg.follows[ruleIndex].IsSuperSet(ruleFollows) {
+				// No new values
+				break
 			}
-		}
-
-		for _, k := range nextFirsts.Bytes() {
-			if k == EOS {
-				continue
-			}
-
-			if tg.follows[ruleIndex].Contains(k) {
-				continue
-			}
+			tg.follows[ruleIndex] = tg.follows[ruleIndex].Union(ruleFollows)
 			*followsChanged = true
-			tg.follows[ruleIndex].Add(k)
+			break
 		}
+		nextFirsts.Remove(EOS)
+
+		if tg.follows[ruleIndex].IsSuperSet(nextFirsts) {
+			continue
+		}
+		tg.follows[ruleIndex] = tg.follows[ruleIndex].Union(nextFirsts)
+		*followsChanged = true
 	}
 
 	return nil
@@ -361,25 +340,26 @@ func (tg *tableGenerator,
 			return res, err
 		}
 
-		for _, term := range seqFirsts.Bytes() {
-			if term == EOS {
-				// For each term in ruleFollows add empty []ParserOp
-				// if term in ruleFollow is Epsilon(TypeNothing)
-				//     add empty []ParserOp ?to EOS?
-				seqFollows := tg.follows[ruleIndex]
+		if seqFirsts.Contains(EOS) {
+			// For each term in ruleFollows add empty []ParserOp
+			// if term in ruleFollow is Epsilon(TypeNothing)
+			//     add empty []ParserOp ?to EOS?
+			seqFollows := tg.follows[ruleIndex]
 
-				for _, followTerm := range seqFollows.Bytes() {
-					if v, ok := res[byte(followTerm)]; ok {
-						fmt.Println(v)
-						return res,
-							fmt.Errorf("grammar lead to multiple parser op " +
-								"sets per table cell")
-					}
-					res[byte(followTerm)] = []parser.ParserOp{}
+			for _, followTerm := range seqFollows.Bytes() {
+				if v, ok := res[byte(followTerm)]; ok {
+					fmt.Println(v)
+					return res,
+						fmt.Errorf("grammar lead to multiple parser op " +
+							"sets per table cell")
 				}
-				continue
+				res[byte(followTerm)] = []parser.ParserOp{}
 			}
+			// remove it to not add res
+			seqFirsts.Remove(EOS)
+		}
 
+		for _, term := range seqFirsts.Bytes() {
 			for _, symbol := range sequence.Symbols {
 				switch v := symbol.(type) {
 				case bnf.SymbolTerminal:
